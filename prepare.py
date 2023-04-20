@@ -4,36 +4,40 @@ import log
 from datasets import Cifar10Truncated
 
 
-def save_data(datasets, name="cifar10.d"):
+logger = log.setup_custom_logger("data")
+
+
+def save_data(dataset, dataset_path):
     """
     将数据集以二进制形式存储起来
-    :param datasets: 数据集
-    :param name: 文件名
+    :param dataset_path: 数据集路径
+    :param dataset: 数据集
     """
-    with open(name, "wb") as f:
-        pickle.dump(datasets, f)
+    with open(dataset_path, "wb") as f:
+        pickle.dump(dataset, f)
 
 
-def load_data(name="cifar10.d"):
+def load_data(dataset_path):
     """
     从二进制文件中读取出数据集
-    :param name: 文件名
+    :param dataset_path: 文件名
     :return: 数据集
     """
-    with open(name, "rb") as f:
+    with open(dataset_path, "rb") as f:
         return pickle.load(f)
 
 
-def show_dataset_details(dataset, name):
+def show_dataset_details(dataset, dataset_name):
     """
     展示数据集的基本信息
+    :param dataset_name: 文件
     :param dataset: 数据集
     """
     for k in dataset.keys():
-        logger.info("%s: %s: %s", name, k, dataset[k].shape)
+        logger.info("%s: %s: %s", dataset_name, k, dataset[k].shape)
 
 
-def split_dataset(dataset, split_count):
+def split_dataset(dataset):
     """
     将数据集分割为 n 份
     :param dataset: 数据集
@@ -76,17 +80,22 @@ def get_cifar10_dataset():
 
 
 def prepare_data():
-    save_data(get_cifar10_dataset())
-    cifar10_dataset = load_data()
-    show_dataset_details(cifar10_dataset, "cifar10_global")
+    dataset_path = dataset_dir_path + "cifar10.d"
+    save_data(get_cifar10_dataset(), dataset_path)
+    cifar10_dataset = load_data(dataset_path)
+    show_dataset_details(cifar10_dataset, "cifar10")
     for n, d in enumerate(split_dataset(cifar10_dataset, 2)):
         node_data_name = "federated_data_" + str(n) + ".d"
-        save_data(d, node_data_name)
-        dataset = load_data(node_data_name)
+        node_data_path = dataset_dir_path + node_data_name
+        save_data(d, node_data_path)
+        dataset = load_data(node_data_path)
         show_dataset_details(dataset, node_data_name)
 
 
 if __name__ == '__main__':
-    logger = log.setup_custom_logger("data")
-    dataset_dir_path = "/tmp/dataset"
+    # 数据本地存放路径
+    dataset_dir_path = "/tmp/dataset/"
+    # 数据分割数量
+    split_count = 2
+    # 开始准备数据
     prepare_data()
