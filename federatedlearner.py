@@ -3,12 +3,8 @@
       Federated Learning Script
 """
 
-import tensorflow as tf
 import numpy as np
 import pickle
-
-def reset():
-    tf.reset_default_graph()
 
 class NNWorker:
     def __init__(self,X=None,Y=None,tX=None,tY=None,size=0,id="nn0",steps=10):

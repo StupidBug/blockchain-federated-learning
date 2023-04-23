@@ -172,11 +172,20 @@ class Block:
             )
 
 
-
 class Blockchain(object):
+    """
+    区块链
+    """
 
-    def __init__(self,miner_id,base_model=None,gen=False,update_limit=10,time_limit=1800):
-        super(Blockchain,self).__init__()
+    def __init__(self, miner_id, base_model=None, gen=False, update_limit=10, time_limit=1800):
+        """
+        :param miner_id: 矿工节点的地址 ip:port
+        :param base_model: 初始模型
+        :param gen: 是否为创世区块
+        :param update_limit: 更新次数限制
+        :param time_limit: 训练时间限制
+        """
+        super(Blockchain, self).__init__()
         self.miner_id = miner_id
         self.curblock = None
         self.hashchain = []
@@ -185,8 +194,8 @@ class Blockchain(object):
         self.time_limit = time_limit
         
         if gen:
-            genesis,hgenesis = self.make_block(base_model=base_model,previous_hash=1)
-            self.store_block(genesis,hgenesis)
+            genesis, hgenesis = self.make_block(base_model=base_model, previous_hash=1)
+            self.store_block(genesis, hgenesis)
         self.nodes = set()
 
     def register_node(self,address):
@@ -196,29 +205,35 @@ class Blockchain(object):
         self.nodes.add(parsed_url.netloc)
         print("Registered node",address)
 
-    def make_block(self,previous_hash=None,base_model=None):
+    def make_block(self, previous_hash=None, base_model=None):
+        """
+        创建区块
+        :param previous_hash: 上一区块的哈希值
+        :param base_model: 当前区块基于的模型
+        :return: 区块实例， 区块详情字典
+        """
         accuracy = 0
         basemodel = None
         time_limit = self.time_limit
         update_limit = self.update_limit
-        if len(self.hashchain)>0:
+        if len(self.hashchain) > 0:
             update_limit = self.last_block['update_limit']
             time_limit = self.last_block['time_limit']
-        if previous_hash==None:
+        if previous_hash is None:
             previous_hash = self.hash(str(sorted(self.last_block.items())))
-        if base_model!=None:
+        if base_model is not None:
             accuracy = base_model['accuracy']
             basemodel = base_model['model']
-        elif len(self.current_updates)>0:
+        elif len(self.current_updates) > 0:
             base = self.curblock.basemodel
-            accuracy,basemodel = compute_global_model(base,self.current_updates,1)
+            accuracy, basemodel = compute_global_model(base,self.current_updates,1)
         index = len(self.hashchain)+1
         block = Block(
-            miner = self.miner_id,
-            index = index,
-            basemodel = basemodel,
-            accuracy = accuracy,
-            updates = self.current_updates
+            miner=self.miner_id,
+            index=index,
+            basemodel=basemodel,
+            accuracy=accuracy,
+            updates=self.current_updates
             )
         hashblock = {
             'index':index,
@@ -232,7 +247,7 @@ class Blockchain(object):
             'update_limit': update_limit,
             'model_hash': self.hash(codecs.encode(pickle.dumps(sorted(block.basemodel.items())), "base64").decode())
             }
-        return block,hashblock
+        return block, hashblock
 
     def store_block(self,block,hashblock):
         if self.curblock:

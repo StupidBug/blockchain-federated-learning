@@ -41,6 +41,9 @@ def make_base():
 
 
 class PoWThread(Thread):
+    """
+    工作量证明挖矿
+    """
     def __init__(self, stop_event, blockchain, node_identifier):
         self.stop_event = stop_event
         Thread.__init__(self)
@@ -73,7 +76,7 @@ status = {
 
 def mine():
     STOP_EVENT.clear()
-    thread = PoWThread(STOP_EVENT,status["blockchain"], status["id"])
+    thread = PoWThread(STOP_EVENT, status["blockchain"], status["id"])
     status['s'] = "mining"
     thread.start()
 
@@ -88,37 +91,43 @@ def on_end_mining(stopped):
         requests.get('http://{node}/stopmining'.format(node=node))
 
 
-@app.route('/transactions/new',methods=['POST'])
+@app.route('/transactions/new', methods=['POST'])
 def new_transaction():
     """
     处理新的一笔交易
     :return:
     """
+    # 区块链状态校验
     if status['s'] != "receiving":
         return 'Miner not receiving', 400
-    values = request.get_json()
 
-    required = ['client','baseindex','update','datasize','computing_time']
+    # 参数合法性校验
+    values = request.get_json()
+    required = ['client', 'baseindex', 'update', 'datasize', 'computing_time']
     if not all(k in values for k in required):
         return 'Missing values', 400
     if values['client'] in status['blockchain'].current_updates:
         return 'Model already stored', 400
+
     index = status['blockchain'].new_update(values['client'],
-        values['baseindex'],
-        dict(pickle.loads(codecs.decode(values['update'].encode(), "base64"))),
-        values['datasize'],
-        values['computing_time'])
+                                            values['baseindex'],
+                                            dict(pickle.loads(codecs.decode(values['update'].encode(), "base64"))),
+                                            values['datasize'],
+                                            values['computing_time'])
+    # 向所有miner节点转发该交易
     for node in status["blockchain"].nodes:
         requests.post('http://{node}/transactions/new'.format(node=node), json=request.get_json())
+
+    # 交易合法性校验，成功则开始 mine
     if (status['s'] == 'receiving' and (
-        len(status["blockchain"].current_updates)>=status['blockchain'].last_block['update_limit']
-        or time.time()-status['blockchain'].last_block['timestamp']>status['blockchain'].last_block['time_limit'])):
+        len(status["blockchain"].current_updates) >= status['blockchain'].last_block['update_limit'] or
+            time.time()-status['blockchain'].last_block['timestamp'] > status['blockchain'].last_block['time_limit'])):
         mine()
     response = {'message': "Update will be added to block {index}".format(index=index)}
     return jsonify(response), 201
 
 
-@app.route('/status',methods=['GET'])
+@app.route('/status', methods=['GET'])
 def get_status():
     """
     获取 miner 状态
@@ -282,4 +291,5 @@ if __name__ == '__main__':
         status['blockchain'].register_node(args.maddress)
         requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
-    app.run(host=args.host,port=args.port)
+    # 开启矿工服务
+    app.run(host=args.host, port=args.port)

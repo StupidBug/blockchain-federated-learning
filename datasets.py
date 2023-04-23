@@ -15,13 +15,12 @@ class GlobalDataset(data.Dataset):
     cifar10数据集，继承 data.Dataset 类，可被用于生成 dataloader 进行训练
     """
 
-    def __init__(self, root, dataidxs=None, train=True, transform=None, target_transform=None, name=None):
+    def __init__(self, root, train=True, transform=None, target_transform=None, name=None):
         """
         构造 cifar10 数据集，如果没有就下载
         """
 
         self.root = root
-        self.dataidxs = dataidxs
         self.train = train
         self.transform = transform
         self.target_transform = target_transform
@@ -35,10 +34,6 @@ class GlobalDataset(data.Dataset):
 
         data = cifar_dataobj.data
         target = np.array(cifar_dataobj.targets)
-
-        if self.dataidxs is not None:
-            data = data[self.dataidxs]
-            target = target[self.dataidxs]
 
         return data, target
 

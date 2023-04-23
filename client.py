@@ -38,7 +38,7 @@ class Client:
         if response.status_code == 200:
             return response.json()['chain']
 
-    def get_full_block(self,hblock):
+    def get_full_block(self, hblock):
         response = requests.post('http://{node}/block'.format(node=self.miner),
             json={'hblock': hblock})
         if response.json()['valid']:
@@ -46,7 +46,7 @@ class Client:
         print("Invalid block!")
         return None
 
-    def get_model(self,hblock):
+    def get_model(self, hblock):
         response = requests.post('http://{node}/model'.format(node=self.miner),
             json={'hblock': hblock})
         if response.json()['valid']:
@@ -59,7 +59,7 @@ class Client:
         if response.status_code == 200:
             return response.json()
 
-    def load_dataset(self,name):
+    def load_dataset(self, name):
 
         ''' 
         Function to load federated data for client side training
@@ -91,20 +91,20 @@ class Client:
         worker.close()
         return update, accuracy, time.time()-t
 
-    def send_update(self,update,cmp_time,baseindex):
-
-        ''' 
-        Function to post client update details to blockchain
-        '''
-	
-        requests.post('http://{node}/transactions/new'.format(node=self.miner),
-            json = {
+    def send_update(self, update, cmp_time, baseindex):
+        """
+        向矿工发送更新交易
+        :param update:
+        :param cmp_time:
+        :param baseindex:
+        :return:
+        """
+        requests.post('http://{node}/transactions/new'.format(node=self.miner), json={
                 'client': self.id,
                 'baseindex': baseindex,
                 'update': codecs.encode(pickle.dumps(sorted(update.items())), "base64").decode(),
                 'datasize': len(self.dataset['train_images']),
-                'computing_time': cmp_time
-            })
+                'computing_time': cmp_time})
        
     def work(self, device_id, epoch):
         """
@@ -134,7 +134,7 @@ class Client:
             with open("clients/device"+str(device_id)+"_model_v"+str(i)+".block", "wb") as f:
                 pickle.dump(update, f)
             # j = j+1
-            print("Accuracy local update---------"+ str(device_id) +"--------------:", accuracy)
+            print("Accuracy local update---------" + str(device_id) + "--------------:", accuracy)
             client.send_update(update, cmp_time, baseindex)
             
 
