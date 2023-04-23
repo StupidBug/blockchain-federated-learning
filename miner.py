@@ -6,6 +6,7 @@
 from blockchain import *
 from threading import Thread, Event
 from federatedlearner import *
+from datasets import GlobalDataset, NodeDataset
 from model import *
 import codecs
 import os
@@ -23,11 +24,24 @@ def make_base():
     """
     # TODO 是否使用多种模型（看进度）
     net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
-    return net
+
+    global_dataset = GlobalDataset(root="/tmp/dataset", train=False, )
+    worker = NNWorker(dataset["train_images"],
+        dataset["train_labels"],
+        dataset["test_images"],
+        dataset["test_labels"],
+        0,
+        "base0")
+    worker.build_base()
+    model = dict()
+    model['model'] = worker.get_model()
+    model['accuracy'] = worker.evaluate()
+    worker.close()
+    return model
 
 
 class PoWThread(Thread):
-    def __init__(self, stop_event,blockchain,node_identifier):
+    def __init__(self, stop_event, blockchain, node_identifier):
         self.stop_event = stop_event
         Thread.__init__(self)
         self.blockchain = blockchain
@@ -35,9 +49,9 @@ class PoWThread(Thread):
         self.response = None
 
     def run(self):
-        block,stopped = self.blockchain.proof_of_work(self.stop_event)
+        block, stopped = self.blockchain.proof_of_work(self.stop_event)
         self.response = {
-            'message':"End mining",
+            'message': "End mining",
             'stopped': stopped,
             'block': str(block)
         }
@@ -56,11 +70,13 @@ status = {
     'address': ""                               # 节点IP和Port
     }
 
+
 def mine():
     STOP_EVENT.clear()
     thread = PoWThread(STOP_EVENT,status["blockchain"], status["id"])
     status['s'] = "mining"
     thread.start()
+
 
 def on_end_mining(stopped):
     if status['s'] == "receiving":
@@ -71,8 +87,13 @@ def on_end_mining(stopped):
     for node in status["blockchain"].nodes:
         requests.get('http://{node}/stopmining'.format(node=node))
 
+
 @app.route('/transactions/new',methods=['POST'])
 def new_transaction():
+    """
+    处理新的一笔交易
+    :return:
+    """
     if status['s'] != "receiving":
         return 'Miner not receiving', 400
     values = request.get_json()
@@ -88,52 +109,67 @@ def new_transaction():
         values['datasize'],
         values['computing_time'])
     for node in status["blockchain"].nodes:
-        requests.post('http://{node}/transactions/new'.format(node=node),
-            json=request.get_json())
-    if (status['s']=='receiving' and (
+        requests.post('http://{node}/transactions/new'.format(node=node), json=request.get_json())
+    if (status['s'] == 'receiving' and (
         len(status["blockchain"].current_updates)>=status['blockchain'].last_block['update_limit']
         or time.time()-status['blockchain'].last_block['timestamp']>status['blockchain'].last_block['time_limit'])):
         mine()
     response = {'message': "Update will be added to block {index}".format(index=index)}
-    return jsonify(response),201
+    return jsonify(response), 201
+
 
 @app.route('/status',methods=['GET'])
 def get_status():
+    """
+    获取 miner 状态
+    :return:
+    """
     response = {
         'status': status['s'],
         'last_model_index': status['blockchain'].last_block['index']
         }
-    return jsonify(response),200
+    return jsonify(response), 200
 
-@app.route('/chain',methods=['GET'])
+
+@app.route('/chain', methods=['GET'])
 def full_chain():
+    """
+    获取完整的区块链
+    :return:
+    """
     response = {
         'chain': status['blockchain'].hashchain,
-        'length':len(status['blockchain'].hashchain)
+        'length': len(status['blockchain'].hashchain)
     }
-    return jsonify(response),200
+    return jsonify(response), 200
 
-@app.route('/nodes/register',methods=['POST'])
+
+@app.route('/nodes/register', methods=['POST'])
 def register_nodes():
+    """
+    注册节点
+    :return:
+    """
     values = request.get_json()
     nodes = values.get('nodes')
     if nodes is None:
         return "Error: Enter valid nodes in the list ", 400
     for node in nodes:
-        if node!=status['address'] and not node in status['blockchain'].nodes:
+        if node != status['address'] and node not in status['blockchain'].nodes:
             status['blockchain'].register_node(node)
             for miner in status['blockchain'].nodes:
-                if miner!=node:
+                if miner != node:
                     print("node",node,"miner",miner)
                     requests.post('http://{miner}/nodes/register'.format(miner=miner),
                         json={'nodes': [node]})
     response = {
-        'message':"New nodes have been added",
-        'total_nodes':list(status['blockchain'].nodes)
+        'message': "New nodes have been added",
+        'total_nodes': list(status['blockchain'].nodes)
     }
-    return jsonify(response),201
+    return jsonify(response), 201
 
-@app.route('/block',methods=['POST'])
+
+@app.route('/block', methods=['POST'])
 def get_block():
     values = request.get_json()
     hblock = values['hblock']
@@ -141,27 +177,27 @@ def get_block():
     if status['blockchain'].curblock.index == hblock['index']:
         block = status['blockchain'].curblock
     elif os.path.isfile("./blocks/federated_model"+str(hblock['index'])+".block"):
-        with open("./blocks/federated_model"+str(hblock['index'])+".block","rb") as f:
+        with open("./blocks/federated_model"+str(hblock['index'])+".block", "rb") as f:
             block = pickle.load(f)
     else:
-        resp = requests.post('http://{node}/block'.format(node=hblock['miner']),
-            json={'hblock': hblock})
+        resp = requests.post('http://{node}/block'.format(node=hblock['miner']), json={'hblock': hblock})
         if resp.status_code == 200:
             raw_block = resp.json()['block']
             if raw_block:
                 block = Block.from_string(raw_block)
-                with open("./blocks/federated_model"+str(hblock['index'])+".block","wb") as f:
-                    pickle.dump(block,f)
+                with open("./blocks/federated_model"+str(hblock['index'])+".block", "wb") as f:
+                    pickle.dump(block, f)
     valid = False
-    if Blockchain.hash(str(block))==hblock['hash']:
+    if Blockchain.hash(str(block)) == hblock['hash']:
         valid = True
     response = {
         'block': str(block),
         'valid': valid
     }
-    return jsonify(response),200
+    return jsonify(response), 200
 
-@app.route('/model',methods=['POST'])
+
+@app.route('/model', methods=['POST'])
 def get_model():
     values = request.get_json()
     hblock = values['hblock']
@@ -169,28 +205,28 @@ def get_model():
     if status['blockchain'].curblock.index == hblock['index']:
         block = status['blockchain'].curblock
     elif os.path.isfile("./blocks/federated_model"+str(hblock['index'])+".block"):
-        with open("./blocks/federated_model"+str(hblock['index'])+".block","rb") as f:
+        with open("./blocks/federated_model"+str(hblock['index'])+".block", "rb") as f:
             block = pickle.load(f)
     else:
-        resp = requests.post('http://{node}/block'.format(node=hblock['miner']),
-            json={'hblock': hblock})
+        resp = requests.post('http://{node}/block'.format(node=hblock['miner']), json={'hblock': hblock})
         if resp.status_code == 200:
             raw_block = resp.json()['block']
             if raw_block:
                 block = Block.from_string(raw_block)
-                with open("./blocks/federated_model"+str(hblock['index'])+".block","wb") as f:
-                    pickle.dump(block,f)
+                with open("./blocks/federated_model"+str(hblock['index'])+".block", "wb") as f:
+                    pickle.dump(block, f)
     valid = False
     model = block.basemodel
-    if Blockchain.hash(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode())==hblock['model_hash']:
+    if Blockchain.hash(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode()) == hblock['model_hash']:
         valid = True
     response = {
         'model': codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode(),
         'valid': valid
     }
-    return jsonify(response),200
+    return jsonify(response), 200
 
-@app.route('/nodes/resolve',methods=["GET"])
+
+@app.route('/nodes/resolve', methods=["GET"])
 def consensus():
     replaced = status['blockchain'].resolve_conflicts(STOP_EVENT)
     if replaced:
@@ -206,13 +242,14 @@ def consensus():
     return jsonify(response), 200
 
 
-@app.route('/stopmining',methods=['GET'])
+@app.route('/stopmining', methods=['GET'])
 def stop_mining():
     status['blockchain'].resolve_conflicts(STOP_EVENT)
     response = {
-        'mex':"stopped!"
+        'mex': "stopped!"
     }
-    return jsonify(response),200
+    return jsonify(response) ,200
+
 
 def delete_prev_blocks():
     files = glob.glob('blocks/*.block')
@@ -229,11 +266,13 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--ulimit', default=10, type=int, help='number of updates stored in one block')
     parser.add_argument('-ma', '--maddress', help='other miner IP:port')
     args = parser.parse_args()
+    # 矿工地址
     address = "{host}:{port}".format(host=args.host, port=args.port)
     status['address'] = address
     if args.genesis == 0 and args.maddress is None:
         raise ValueError("Must set genesis=1 or specify maddress")
     delete_prev_blocks()
+    # 初始化创世区块
     if args.genesis == 1:
         model = make_base()
         logger.info("base model accuracy:", model['accuracy'])
@@ -241,7 +280,6 @@ if __name__ == '__main__':
     else:
         status['blockchain'] = Blockchain(address)
         status['blockchain'].register_node(args.maddress)
-        requests.post('http://{node}/nodes/register'.format(node=args.maddress),
-            json={'nodes': [address]})
+        requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
     app.run(host=args.host,port=args.port)
