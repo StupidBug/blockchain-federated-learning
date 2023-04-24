@@ -14,39 +14,31 @@ import random
 from threading import Thread, Event
 import pickle
 import codecs
-import data.federated_data_extractor as dataext
+from torch.utils.data import DataLoader
 import numpy as np
 from federatedlearner import *
+from datasets import *
 
 
-def compute_global_model(base,updates,lrate):
+def compute_global_model(base_model, updates, learning_rate):
 
-    '''
-    Function to compute the global model based on the client 
-    updates received per round
-    '''
+    """
+    聚合全局模型
+    :param base_model:
+    :param updates:
+    :param learning_rate:
+    :return:
+    """
 
-    upd = dict()
-    for x in ['w1','w2','wo','b1','b2','bo']:
-        upd[x] = np.array(base[x], copy=True)
-    number_of_clients = len(updates)
-    for client in updates.keys():
-        for x in ['w1','w2','wo','b1','b2','bo']:
-            model = updates[client].update
-            upd[x] += (lrate/number_of_clients)*(model[x]+base[x])
-    upd["size"] = 0
-    reset()
-    dataset = dataext.load_data("data/mnist.d")
-    worker = NNWorker(None,
-        None,
-        dataset['test_images'],
-        dataset['test_labels'],
-        0,
-        "validation")
-    worker.build(upd)
+    dataset = GlobalDataset("d:/dataset", train=False)
+    dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
+    worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
+                      epochs=None, device="cuda")
+    worker.build(base_model, updates)
+    model = worker.get_model()
     accuracy = worker.evaluate()
     worker.close()
-    return accuracy,upd
+    return accuracy, model
 
 def find_len(text,strk):
 
@@ -226,7 +218,7 @@ class Blockchain(object):
             basemodel = base_model['model']
         elif len(self.current_updates) > 0:
             base = self.curblock.basemodel
-            accuracy, basemodel = compute_global_model(base,self.current_updates,1)
+            accuracy, basemodel = compute_global_model(base, self.current_updates, 1)
         index = len(self.hashchain)+1
         block = Block(
             miner=self.miner_id,

@@ -32,38 +32,30 @@ class NNWorker:
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
         self.learning_rate = learning_rate
-        self.net = self.build_base()
+        self.model = self.build_base()
         self.epochs = epochs
         self.device = device
 
-    def build(self, base):
+    def build(self, base_model, updates):
 
-        ''' 
-        Function to initialize/build network based on updated values received 
-        from blockchain
-        '''
+        """
+        基于模型参数构建模型
+        :return:
+        """
+        number_of_updates = len(updates)
+        global_para = base_model.state_dict()
+        for index in range(number_of_updates):
+            net_para = updates[index].cpu().state_dict()
 
-        self.X = tf.placeholder("float", [None, self.num_input])
-        self.Y = tf.placeholder("float", [None, self.num_classes])
-        self.weights = {
-            'w1': tf.Variable(base['w1'], name="w1"),
-            'w2': tf.Variable(base['w2'], name="w2"),
-            'wo': tf.Variable(base['wo'], name="wo")
-        }
-        self.biases = {
-            'b1': tf.Variable(base['b1'], name="b1"),
-            'b2': tf.Variable(base['b2'], name="b2"),
-            'bo': tf.Variable(base['bo'], name="bo")
-        }
+            if base_model is None:
+                for key in net_para:
+                    global_para[key] = net_para[key] * (1 / number_of_updates)
+            else:
+                for key in net_para:
+                    global_para[key] += net_para[key] * (1 / number_of_updates)
 
-        self.layer_1 = tf.add(tf.matmul(self.X, self.weights['w1']), self.biases['b1'])
-        self.layer_2 = tf.add(tf.matmul(self.layer_1, self.weights['w2']), self.biases['b2'])
-        self.out_layer = tf.matmul(self.layer_2, self.weights['wo']) + self.biases['bo']
-        self.logits = self.out_layer
-        self.correct_pred = tf.equal(tf.argmax(self.logits, 1), tf.argmax(self.Y, 1))
-        self.accuracy = tf.reduce_mean(tf.cast(self.correct_pred, tf.float32))
-        self.init = tf.global_variables_initializer()
-        self.sess.run(self.init)
+        base_model.load_state_dict(global_para)
+        self.model = base_model
 
     @staticmethod
     def build_base():
@@ -78,14 +70,14 @@ class NNWorker:
 
         logger.info('Training network %s' % str(self.worker_id))
 
-        train_acc = compute_accuracy(self.net, self.train_dataloader, device=self.device)
-        test_acc, conf_matrix = compute_accuracy(self.net, self.test_dataloader, get_confusion_matrix=True,
+        train_acc = compute_accuracy(self.model, self.train_dataloader, device=self.device)
+        test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
 
         logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
         logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
 
-        optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.net.parameters()), lr=self.learning_rate,
+        optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.learning_rate,
                               momentum=0, weight_decay=1e-5)
         criterion = nn.CrossEntropyLoss().to(self.device)
 
@@ -108,7 +100,7 @@ class NNWorker:
                     target.requires_grad = False
                     target = target.long()
 
-                    out = self.net(x)
+                    out = self.model(x)
                     loss = criterion(out, target)
 
                     loss.backward()
@@ -120,14 +112,14 @@ class NNWorker:
             epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
             logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
 
-        train_acc = compute_accuracy(self.net, self.train_dataloader, device=self.device)
-        test_acc, conf_matrix = compute_accuracy(self.net, self.test_dataloader, get_confusion_matrix=True,
+        train_acc = compute_accuracy(self.model, self.train_dataloader, device=self.device)
+        test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
 
         logger.info('>> Training accuracy: %f' % train_acc)
         logger.info('>> Test accuracy: %f' % test_acc)
 
-        self.net.to('cpu')
+        self.model.to('cpu')
         logger.info(' ** Training complete **')
         return train_acc, test_acc
 
@@ -159,10 +151,13 @@ class NNWorker:
 
     def evaluate(self):
 
-        '''
-        Function to calculate accuracy on test data
-        '''
-        return self.sess.run(self.accuracy, feed_dict={self.X: self.test_x, self.Y: self.test_y})
+        """
+        使用测试集评估模型准确度
+        :return:
+        """
+
+        return compute_accuracy(model=self.model, dataloader=self.test_dataloader,
+                                get_confusion_matrix=False, device="cuda")
 
     def get_model(self):
 
@@ -175,8 +170,9 @@ class NNWorker:
         return varsk
 
     def close(self):
-
-        '''
-        Function to close the current session
-        '''
-        self.sess.close()
+        """
+        结束模训练过程
+        :return:
+        """
+        # TODO 未完成
+        return None
