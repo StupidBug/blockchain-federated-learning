@@ -25,17 +25,18 @@ class GlobalDataset(data.Dataset):
         self.transform = transform
         self.target_transform = target_transform
         self.name = name
+        # data 变量名固定，不能更改
         self.data, self.target = self.__build_truncated_dataset__()
 
     def __build_truncated_dataset__(self):
 
         # 如果不存在就会下载数据集
-        cifar_dataobj = CIFAR10(self.root, self.train, self.transform, self.target_transform, True)
+        cifar10 = CIFAR10(self.root, self.train, self.transform, self.target_transform, True)
 
-        data = cifar_dataobj.data
-        target = np.array(cifar_dataobj.targets)
+        dataset = cifar10.data
+        target = np.array(cifar10.targets)
 
-        return data, target
+        return dataset, target
 
     def truncate_channel(self, index):
         for i in range(index.shape[0]):
