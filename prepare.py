@@ -1,3 +1,5 @@
+import torch
+
 import log
 
 from utils import *
@@ -6,6 +8,7 @@ from datasets import GlobalDataset, NodeDataset
 import torchvision.transforms as transforms
 
 logger = log.setup_custom_logger("data")
+path_separator = '\\'
 
 
 def save_data(dataset, filename):
@@ -59,20 +62,32 @@ def get_cifar10_dataset():
     return train_ds, test_ds
 
 
+def save_dataset(dateset, dataset_name):
+    """
+    保存 dataset
+    :param dateset: 数据集
+    :param dataset_name: 数据集文件名
+    """
+    torch.save(dateset, dataset_dir_path + path_separator + dataset_name)
+
+
 def prepare_data():
     logger.info("开始数据准备工作————数据本地存放路径:{}".format(dataset_dir_path))
     train_ds, test_ds = get_cifar10_dataset()
     show_dataset_details(train_ds)
+    save_dataset(train_ds, train_ds.name)
+    save_dataset(test_ds, test_ds.name)
     show_dataset_details(test_ds)
     for n, d in enumerate(split_dataset(train_ds)):
         node_name = "node_" + str(n)
         node_dataset = NodeDataset(dataset_dir=dataset_dir_path, name=node_name, dataset=d)
+        save_dataset(node_dataset, node_dataset.name)
         show_dataset_details(node_dataset)
 
 
 if __name__ == '__main__':
     # 数据本地存放路径
-    dataset_dir_path = "/tmp/dataset/"
+    dataset_dir_path = "D:\\dataset"
     # 数据分割数量
     split_count = 5
     # 开始准备数据
