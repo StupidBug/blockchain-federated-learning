@@ -40,7 +40,7 @@ class Client:
 
     def get_full_block(self, hblock):
         response = requests.post('http://{node}/block'.format(node=self.miner),
-            json={'hblock': hblock})
+                                 json={'hblock': hblock})
         if response.json()['valid']:
             return Block.from_string(response.json()['block'])
         print("Invalid block!")
@@ -48,7 +48,7 @@ class Client:
 
     def get_model(self, hblock):
         response = requests.post('http://{node}/model'.format(node=self.miner),
-            json={'hblock': hblock})
+                                 json={'hblock': hblock})
         if response.json()['valid']:
             return dict(pickle.loads(codecs.decode(response.json()['model'].encode(), "base64")))
         print("Invalid model!")
@@ -64,7 +64,7 @@ class Client:
         ''' 
         Function to load federated data for client side training
         '''
-        if name==None:
+        if name is None:
             return None
         return dataext.load_data(name)
 
