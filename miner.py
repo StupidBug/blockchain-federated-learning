@@ -256,7 +256,7 @@ def stop_mining():
     response = {
         'mex': "stopped!"
     }
-    return jsonify(response) ,200
+    return jsonify(response), 200
 
 
 def delete_prev_blocks():
