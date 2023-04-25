@@ -248,8 +248,8 @@ class Blockchain(object):
     def store_block(self, block, hashblock):
         """
         存储区块
-        :param block:
-        :param hashblock:
+        :param block: 区块对象
+        :param hashblock: 区块的内容
         :return:
         """
         if self.curblock:
@@ -272,13 +272,27 @@ class Blockchain(object):
 
     @staticmethod
     def hash(text):
+        """
+        sha256 哈希函数
+        :param text: 需要哈希的内容
+        :return: 哈希后的结果
+        """
         return hashlib.sha256(text.encode()).hexdigest()
 
     @property
     def last_block(self):
+        """
+        返回最新区块
+        :return: 最新区块
+        """
         return self.hashchain[-1]
 
     def proof_of_work(self, stop_event):
+        """
+        工作量证明挖矿
+        :param stop_event:
+        :return:
+        """
         block, hblock = self.make_block()
         stopped = False
         while self.valid_proof(str(sorted(hblock.items()))) is False:
@@ -298,6 +312,11 @@ class Blockchain(object):
 
     @staticmethod
     def valid_proof(block_data):
+        """
+        验证挖的 nonce 是否有效
+        :param block_data:
+        :return:
+        """
         guess_hash = hashlib.sha256(block_data.encode()).hexdigest()
         k = "00000"
         return guess_hash[:len(k)] == k

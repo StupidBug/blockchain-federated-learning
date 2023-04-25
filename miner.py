@@ -260,6 +260,10 @@ def stop_mining():
 
 
 def delete_prev_blocks():
+    """
+    删除之前的区块文件，根据文件后缀筛选
+    :return:
+    """
     files = glob.glob('blocks/*.block')
     for f in files:
         os.remove(f)
@@ -268,11 +272,11 @@ def delete_prev_blocks():
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument('-p', '--port', default=5000, type=int, help='port to listen on')
-    parser.add_argument('-i', '--host', default='127.0.0.1', help='IP address of this miner')
-    parser.add_argument('-g', '--genesis', default=0, type=int, help='instantiate genesis block')
-    parser.add_argument('-l', '--ulimit', default=10, type=int, help='number of updates stored in one block')
-    parser.add_argument('-ma', '--maddress', help='other miner IP:port')
+    parser.add_argument('-p', '--port', default=5000, type=int, help='矿工监听的端口')
+    parser.add_argument('-i', '--host', default='127.0.0.1', help='矿工的IP地址')
+    parser.add_argument('-g', '--genesis', default=0, type=int, help='初始化创世区块')
+    parser.add_argument('-l', '--updateLimit', default=10, type=int, help='单个区块中最多包含多少个更新')
+    parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
     args = parser.parse_args()
     # 矿工地址
     address = "{host}:{port}".format(host=args.host, port=args.port)
@@ -280,11 +284,12 @@ if __name__ == '__main__':
     if args.genesis == 0 and args.maddress is None:
         raise ValueError("Must set genesis=1 or specify maddress")
     delete_prev_blocks()
-    # 初始化创世区块
+    # 如何需要新启动一个区块链，则初始化区块链设置
     if args.genesis == 1:
         model = make_base()
         logger.info("base model accuracy:", model['accuracy'])
         status['blockchain'] = Blockchain(address, model, True, args.ulimit)
+    #
     else:
         status['blockchain'] = Blockchain(address)
         status['blockchain'].register_node(args.maddress)
