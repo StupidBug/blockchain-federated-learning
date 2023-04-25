@@ -68,22 +68,21 @@ class Client:
             return None
         return dataext.load_data(name)
 
-    def update_model(self, model, steps):
+    def update_model(self, model, epochs):
+
         """
-        本地训练模型
-        :param model:
-        :param steps:
+        client 在本地训练模型
+        :param model: 本地当前模型
+        :param epochs: 本地训练轮次
         :return:
         """
-        reset()
+
         t = time.time()
-        worker = NNWorker(self.dataset['train_images'],
-            self.dataset['train_labels'],
-            self.dataset['test_images'],
-            self.dataset['test_labels'],
-            len(self.dataset['train_images']),
-            self.id,
-            steps)
+        dataset = GlobalDataset("d:/dataset", train=False)
+        dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
+        worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
+                          epochs=epochs, device="cuda")
+
         worker.build(model)
         worker.train()
         update = worker.get_model()
@@ -108,7 +107,7 @@ class Client:
        
     def work(self, device_id, epoch):
         """
-        本地训练模型并发送交易给区块链
+        client 本地训练模型并发送交易给区块链
         :param device_id:
         :param epoch: 训练轮次
         :return:
