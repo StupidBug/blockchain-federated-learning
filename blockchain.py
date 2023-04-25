@@ -172,6 +172,7 @@ class Blockchain(object):
 
     def __init__(self, miner_id, base_model=None, gen=False, update_limit=10, time_limit=1800):
         """
+        初始化区块链
         :param miner_id: 矿工节点的地址 ip:port
         :param base_model: 初始模型
         :param gen: 是否为创世区块

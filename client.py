@@ -9,6 +9,7 @@ from blockchain import *
 from uuid import uuid4
 import requests
 import data.federated_data_extractor as dataext
+from argparse import ArgumentParser
 import time
 
 
@@ -98,6 +99,7 @@ class Client:
         :param baseindex:
         :return:
         """
+        logger.info("Client:{} 正在向miner节点:{} 发送梯度更新交易".format(self.id, self.miner))
         requests.post('http://{node}/transactions/new'.format(node=self.miner), json={
                 'client': self.id,
                 'baseindex': baseindex,
@@ -105,52 +107,52 @@ class Client:
                 'datasize': len(self.dataset['train_images']),
                 'computing_time': cmp_time})
        
-    def work(self, device_id, epoch):
+    def work(self, epochs):
         """
         client 本地训练模型并发送交易给区块链
-        :param device_id:
-        :param epoch: 训练轮次
+        :param epochs: 本地训练轮次
         :return:
         """
         # 最新区块的index
-        last_model = -1
-        for i in range(epoch):
+        last_model_index = -1
+        for epoch in range(epochs):
             # 等待区块链可接受
             wait = True
             while wait:
                 status = client.get_miner_status()
-                if status['status'] != "receiving" or last_model == status['last_model_index']:
+                if status['status'] != "receiving" or last_model_index == status['last_model_index']:
                     time.sleep(10)
-                    print("waiting")
                 else:
                     wait = False
+
+            # 获取当前区块链信息
             hblock = client.get_last_block()
-            baseindex = hblock['index']
-            print("Accuracy global model", hblock['accuracy'])
-            last_model = baseindex
+            base_index = hblock['index']
+            last_model_index = base_index
+            logger.info("当前区块链中全局模型的准确率: {}".format(hblock['accuracy']))
+
+            # 开始进行本地训练
             model = client.get_model(hblock)
             update, accuracy, cmp_time = client.update_model(model, 10)
-            with open("clients/device"+str(device_id)+"_model_v"+str(i)+".block", "wb") as f:
+            # 保存梯度更新
+            with open("clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
                 pickle.dump(update, f)
-            # j = j+1
-            print("Accuracy local update---------" + str(device_id) + "--------------:", accuracy)
-            client.send_update(update, cmp_time, baseindex)
+            logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, epoch, accuracy))
+
+            client.send_update(update, cmp_time, base_index)
             
 
 if __name__ == '__main__':
-    
-    from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='Address of miner')
+    parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
     parser.add_argument('-d', '--dataset', default='data/mnist.d', help='Path to dataset')
-    parser.add_argument('-e', '--epochs', default=10, type=int, help='Number of epochs')
+    parser.add_argument('-e', '--epochs', default=10, type=int, help='client本地训练的轮次')
     args = parser.parse_args()
+
     client = Client(args.miner, args.dataset)
-    print("--------------")
+    logger.info("Client节点:{} 已完成初始化".format(client.id))
+
     print(client.id, " Dataset info:")
     Data_size, Number_of_classes = dataext.get_dataset_details(client.dataset)
-    print("--------------")
-    device_id = client.id[:2]
-    print(device_id, "device_id")
-    print("--------------")
-    client.work(device_id, args.epochs)
+
+    client.work(args.epochs)
