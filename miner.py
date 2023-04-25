@@ -64,12 +64,14 @@ STOP_EVENT = Event()
 
 app = Flask(__name__)
 
-# 区块链节点状态
+"""
+区块链中的每个节点维护一个 status, 包含作为区块链节点所需的全部信息
+"""
 status = {
-    's': "receiving",
-    'id': str(uuid4()).replace('-', ''),        # 节点ID
-    'blockchain': None,                         #
-    'address': ""                               # 节点IP和Port
+    's': "receiving",                           # 节点是否可以接受交易
+    'id': str(uuid4()).replace('-', ''),        # 节点的唯一ID
+    'blockchain': None,                         # 节点维护的区块链
+    'address': ""                               # 节点的IP和Port
     }
 
 
@@ -86,7 +88,7 @@ def on_end_mining(stopped):
     if stopped:
         status["blockchain"].resolve_conflicts(STOP_EVENT)
     status['s'] = "receiving"
-    for node in status["blockchain"].nodes:
+    for node in status["blockchain"].node_addresses:
         requests.get('http://{node}/stopmining'.format(node=node))
 
 
@@ -114,7 +116,7 @@ def new_transaction():
                                             values['datasize'],
                                             values['computing_time'])
     # 向所有miner节点转发该交易
-    for node in status["blockchain"].nodes:
+    for node in status["blockchain"].node_addresses:
         requests.post('http://{node}/transactions/new'.format(node=node), json=request.get_json())
 
     # 交易合法性校验，成功则开始 mine
@@ -155,24 +157,29 @@ def full_chain():
 @app.route('/nodes/register', methods=['POST'])
 def register_nodes():
     """
-    注册节点
+    注册节点————将节点添加到本地的区块链中，并向其他区块链节点发送注册请求
     :return:
     """
     values = request.get_json()
-    nodes = values.get('nodes')
-    if nodes is None:
+    node_addresses = values.get('nodes')
+
+    if node_addresses is None:
         return "Error: Enter valid nodes in the list ", 400
-    for node in nodes:
-        if node != status['address'] and node not in status['blockchain'].nodes:
-            status['blockchain'].register_node(node)
-            for miner in status['blockchain'].nodes:
-                if miner != node:
-                    print("node",node,"miner",miner)
-                    requests.post('http://{miner}/nodes/register'.format(miner=miner),
-                        json={'nodes': [node]})
+
+    for node_address in node_addresses:
+        if node_address != status['address'] and node_address not in status['blockchain'].node_addresses:
+            # 向区块链中添加该节点
+            status['blockchain'].register_node(node_address)
+            for node_address_registered in status['blockchain'].node_addresses:
+                # 向区块链中的其他节点注册该节点
+                if node_address_registered != node_address:
+                    logger.info("向节点: {} 发送请求注册节点: {}".format(node_address_registered, node_address))
+                    requests.post('http://{node_address}/nodes/register'.format(node_address=node_address_registered),
+                                  json={'nodes': [node_address]})
+
     response = {
         'message': "New nodes have been added",
-        'total_nodes': list(status['blockchain'].nodes)
+        'total_nodes': list(status['blockchain'].node_addresses)
     }
     return jsonify(response), 201
 

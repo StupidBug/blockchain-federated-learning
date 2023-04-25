@@ -147,6 +147,7 @@ class Block:
         ''' 
         Function to return the update string values in the required format per block
         '''
+
         return "'index': {index},\
             'miner': {miner},\
             'timestamp': {timestamp},\
@@ -188,14 +189,20 @@ class Blockchain(object):
         if gen:
             genesis, hgenesis = self.make_block(base_model=base_model, previous_hash=1)
             self.store_block(genesis, hgenesis)
-        self.nodes = set()
+        self.node_addresses = set()
 
-    def register_node(self,address):
+    def register_node(self, address):
+        """
+        在区块链中注册节点————将节点 ip 添加进区块链的 nodes 集合中
+        :param address:
+        :return:
+        """
         if address[:4] != "http":
-            address = "http://"+address
+            address = "http://" + address
+        # 解析url通过.netloc获得url中的ip:port部分
         parsed_url = urlparse(address)
-        self.nodes.add(parsed_url.netloc)
-        print("Registered node",address)
+        self.node_addresses.add(parsed_url.netloc)
+        print("Registered node", address)
 
     def make_block(self, previous_hash=None, base_model=None):
         """
@@ -228,9 +235,9 @@ class Blockchain(object):
             updates=self.current_updates
             )
         hashblock = {
-            'index':index,
+            'index': index,
             'hash': self.hash(str(block)),
-            'proof': random.randint(0,100000000),
+            'proof': random.randint(0, 100000000),
             'previous_hash': previous_hash,
             'miner': self.miner_id,
             'accuracy': str(accuracy),
@@ -310,7 +317,7 @@ class Blockchain(object):
         return True
 
     def resolve_conflicts(self,stop_event):
-        neighbours = self.nodes
+        neighbours = self.node_addresses
         new_chain = None
         bnode = None
         max_length = len(self.hashchain)
