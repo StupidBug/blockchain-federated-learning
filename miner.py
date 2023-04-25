@@ -19,25 +19,24 @@ logger = log.setup_custom_logger("miner")
 
 def make_base():
     """
-    Function to do the base level training on the first set of client data
-    for the genesis block
+    在初始化区块链的时候，需要通过 make_base 创建一个初始模型，然后将该模型添加区块链中
+    随后 client 提交的 updates 将在这个初始模型上进行更改
+    :return:
     """
     # TODO 是否使用多种模型（看进度）
     net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
 
     global_dataset = GlobalDataset(root="/tmp/dataset", train=False, )
-    worker = NNWorker(dataset["train_images"],
-        dataset["train_labels"],
-        dataset["test_images"],
-        dataset["test_labels"],
-        0,
-        "base0")
+    dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True, num_workers=4)
+    worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
+                      epochs=None, device="cuda")
     worker.build_base()
-    model = dict()
-    model['model'] = worker.get_model()
-    model['accuracy'] = worker.evaluate()
+
+    model_info = dict()
+    model_info['model'] = worker.get_model()
+    model_info['accuracy'] = worker.evaluate()
     worker.close()
-    return model
+    return model_info
 
 
 class PoWThread(Thread):
