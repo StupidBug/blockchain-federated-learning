@@ -2,26 +2,28 @@
   - Blockchain for Federated Learning - 
     Client script 
 """
-import tensorflow as tf
-import pickle
+
+import torch
 from federatedlearner import *
 from blockchain import *
 from uuid import uuid4
 import requests
-import data.federated_data_extractor as dataext
 from argparse import ArgumentParser
+from datasets import *
 import time
 
 
 class Client:
-    def __init__(self, miner, dataset):
+    def __init__(self, miner, dataset_dir, client_name):
         """
         :param miner: 矿工地址
-        :param dataset: 数据集路径
+        :param dataset_dir: 数据集存放文件夹
         """
         self.id = str(uuid4()).replace('-', '')
+        self.name = client_name
+        self.dataset_dir = dataset_dir
         self.miner = miner
-        self.dataset = self.load_dataset(dataset)
+        self.dataset = self.load_dataset()
 
     def get_last_block(self):
         """
@@ -60,14 +62,12 @@ class Client:
         if response.status_code == 200:
             return response.json()
 
-    def load_dataset(self, name):
+    def load_dataset(self):
+        """
+        加载数据集
+        """
 
-        ''' 
-        Function to load federated data for client side training
-        '''
-        if name is None:
-            return None
-        return dataext.load_data(name)
+        return NodeDataset(self.dataset_dir, self.name)
 
     def update_model(self, model, epochs):
 
@@ -79,9 +79,11 @@ class Client:
         """
 
         t = time.time()
-        dataset = GlobalDataset("d:/dataset", train=False)
+        dataset = GlobalDataset(self.dataset_dir, train=False)
         dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
-        worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
+        # TODO 待确认参数
+        dataloader_local = DataLoader(self.dataset, batch_size=32, shuffle=True, num_workers=4)
+        worker = NNWorker(train_dataloader=dataloader_local, test_dataloader=dataloader_global, worker_id="Aggregation",
                           epochs=epochs, device="cuda")
 
         worker.build(model)
@@ -104,6 +106,7 @@ class Client:
                 'client': self.id,
                 'baseindex': baseindex,
                 'update': codecs.encode(pickle.dumps(sorted(update.items())), "base64").decode(),
+                # TODO 待更新
                 'datasize': len(self.dataset['train_images']),
                 'computing_time': cmp_time})
        
@@ -145,14 +148,12 @@ class Client:
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
-    parser.add_argument('-d', '--dataset', default='data/mnist.d', help='Path to dataset')
+    parser.add_argument('-d', '--dataset_dir', default='data/mnist.d', help='dataset数据存放文件夹')
     parser.add_argument('-e', '--epochs', default=10, type=int, help='client本地训练的轮次')
+    parser.add_argument('-e', '--name', default="node_1", type=str, help='client名字')
     args = parser.parse_args()
 
-    client = Client(args.miner, args.dataset)
+    client = Client(args.miner, args.dataset_dir, args.name)
     logger.info("Client节点:{} 已完成初始化".format(client.id))
-
-    print(client.id, " Dataset info:")
-    Data_size, Number_of_classes = dataext.get_dataset_details(client.dataset)
 
     client.work(args.epochs)
