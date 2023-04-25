@@ -39,7 +39,7 @@ class NNWorker:
     def build(self, base_model, updates):
 
         """
-        基于模型参数构建模型
+        基于模型参数和梯度更新 构建新的模型
         :return:
         """
         number_of_updates = len(updates)
@@ -56,6 +56,14 @@ class NNWorker:
 
         base_model.load_state_dict(global_para)
         self.model = base_model
+
+    def build(self, model):
+        """
+        基于模型参数构建模型
+        :param model:
+        :return:
+        """
+        self.model.load_state_dict(model)
 
     @staticmethod
     def build_base():
@@ -122,32 +130,6 @@ class NNWorker:
         self.model.to('cpu')
         logger.info(' ** Training complete **')
         return train_acc, test_acc
-
-    def centralized_accuracy(self):
-
-        ''' 
-        Function to train the data and calculate centralized accuracy based on 
-        evaluating the updated model peformance on test data 
-        '''
-        cntz_acc = dict()
-        cntz_acc['epoch'] = []
-        cntz_acc['accuracy'] = []
-
-        self.build_base()
-        self.loss_op = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-            logits=self.logits, labels=self.Y))
-        self.optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-        self.train_op = self.optimizer.minimize(self.loss_op)
-        self.init = tf.global_variables_initializer()
-        self.sess.run(self.init)
-
-        for step in range(1, self.num_steps + 1):
-            self.sess.run(self.train_op, feed_dict={self.X: self.train_x, self.Y: self.train_y})
-            cntz_acc['epoch'].append(step)
-            acc = self.evaluate()
-            cntz_acc['accuracy'].append(acc)
-            print("epoch", step, "accuracy", acc)
-        return cntz_acc
 
     def evaluate(self):
 
