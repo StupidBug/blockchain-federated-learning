@@ -79,8 +79,7 @@ class Update:
         client = metadata[i4+l4:i5].replace(",",'').replace(" ","")
         datasize = int(metadata[i5+l5:i6].replace(",",'').replace(" ",""))
         computing_time = float(metadata[i6+l6:].replace(",",'').replace(" ",""))
-        return Update(client,baseindex,update,datasize,computing_time,timestamp)
-
+        return Update(client, baseindex, update, datasize, computing_time, timestamp)
 
     def __str__(self):
 
@@ -93,17 +92,17 @@ class Update:
             'client': {client},\
             'datasize': {datasize},\
             'computing_time': {computing_time}".format(
-                timestamp = self.timestamp,
-                baseindex = self.baseindex,
-                update = codecs.encode(pickle.dumps(sorted(self.update.items())), "base64").decode(),
-                client = self.client,
-                datasize = self.datasize,
-                computing_time = self.computing_time
+                timestamp=self.timestamp,
+                baseindex=self.baseindex,
+                update=codecs.encode(pickle.dumps(sorted(self.update.items())), "base64").decode(),
+                client=self.client,
+                datasize=self.datasize,
+                computing_time=self.computing_time
             )
 
 
 class Block:
-    def __init__(self,miner,index,basemodel,accuracy,updates,timestamp=time.time()):
+    def __init__(self, miner, index, basemodel, accuracy, updates, timestamp=time.time()):
 
         ''' 
         Function to initialize the update string parameters per created block
@@ -190,12 +189,17 @@ class Blockchain(object):
             self.store_block(genesis, hgenesis)
         self.nodes = set()
 
-    def register_node(self,address):
+    def register_node(self, address):
+        """
+        注册节点————将节点地址添加到对象的 nodes 集合
+        :param address:
+        :return:
+        """
         if address[:4] != "http":
             address = "http://"+address
         parsed_url = urlparse(address)
         self.nodes.add(parsed_url.netloc)
-        print("Registered node",address)
+        print("Registered node", address)
 
     def make_block(self, previous_hash=None, base_model=None):
         """
@@ -227,10 +231,10 @@ class Blockchain(object):
             accuracy=accuracy,
             updates=self.current_updates
             )
-        hashblock = {
-            'index':index,
+        hash_block = {
+            'index': index,
             'hash': self.hash(str(block)),
-            'proof': random.randint(0,100000000),
+            'proof': random.randint(0, 100000000),
             'previous_hash': previous_hash,
             'miner': self.miner_id,
             'accuracy': str(accuracy),
@@ -239,24 +243,30 @@ class Blockchain(object):
             'update_limit': update_limit,
             'model_hash': self.hash(codecs.encode(pickle.dumps(sorted(block.basemodel.items())), "base64").decode())
             }
-        return block, hashblock
+        return block, hash_block
 
-    def store_block(self,block,hashblock):
+    def store_block(self, block, hashblock):
+        """
+        存储区块
+        :param block:
+        :param hashblock:
+        :return:
+        """
         if self.curblock:
-            with open("blocks/federated_model"+str(self.curblock.index)+".block","wb") as f:
-                pickle.dump(self.curblock,f)
+            with open("blocks/federated_model" + str(self.curblock.index) + ".block", "wb") as f:
+                pickle.dump(self.curblock, f)
         self.curblock = block
         self.hashchain.append(hashblock)
         self.current_updates = dict()
         return hashblock
 
-    def new_update(self,client,baseindex,update,datasize,computing_time):
+    def new_update(self, client, baseindex, update, datasize, computing_time):
         self.current_updates[client] = Update(
-            client = client,
-            baseindex = baseindex,
-            update = update,
-            datasize = datasize,
-            computing_time = computing_time
+            client=client,
+            baseindex=baseindex,
+            update=update,
+            datasize=datasize,
+            computing_time=computing_time
             )
         return self.last_block['index']+1
 
@@ -268,24 +278,23 @@ class Blockchain(object):
     def last_block(self):
         return self.hashchain[-1]
 
-
-    def proof_of_work(self,stop_event):
-        block,hblock = self.make_block()
+    def proof_of_work(self, stop_event):
+        block, hblock = self.make_block()
         stopped = False
         while self.valid_proof(str(sorted(hblock.items()))) is False:
             if stop_event.is_set():
                 stopped = True
                 break
             hblock['proof'] += 1
-            if hblock['proof']%1000==0:
-                print("mining",hblock['proof'])
-        if stopped==False:
-            self.store_block(block,hblock)
+            if hblock['proof'] % 1000 == 0:
+                print("mining", hblock['proof'])
+        if stopped is False:
+            self.store_block(block, hblock)
         if stopped:
             print("Stopped")
         else:
             print("Done")
-        return hblock,stopped
+        return hblock, stopped
 
     @staticmethod
     def valid_proof(block_data):
@@ -293,23 +302,22 @@ class Blockchain(object):
         k = "00000"
         return guess_hash[:len(k)] == k
 
-
-    def valid_chain(self,hchain):
+    def valid_chain(self, hchain):
         last_block = hchain[0]
         curren_index = 1
-        while curren_index<len(hchain):
+        while curren_index < len(hchain):
             hblock = hchain[curren_index]
             if hblock['previous_hash'] != self.hash(str(sorted(last_block.items()))):
-                print("prev_hash diverso",curren_index)
+                print("prev_hash diverso", curren_index)
                 return False
             if not self.valid_proof(str(sorted(hblock.items()))):
-                print("invalid proof",curren_index)
+                print("invalid proof", curren_index)
                 return False
             last_block = hblock
             curren_index += 1
         return True
 
-    def resolve_conflicts(self,stop_event):
+    def resolve_conflicts(self, stop_event):
         neighbours = self.nodes
         new_chain = None
         bnode = None
@@ -319,7 +327,7 @@ class Blockchain(object):
             if response.status_code == 200:
                 length = response.json()['length']
                 chain = response.json()['chain']
-                if length>max_length and self.valid_chain(chain):
+                if length > max_length and self.valid_chain(chain):
                     max_length = length
                     new_chain = chain
                     bnode = node
@@ -328,7 +336,7 @@ class Blockchain(object):
             self.hashchain = new_chain
             hblock = self.hashchain[-1]
             resp = requests.post('http://{node}/block'.format(node=bnode),
-                json={'hblock': hblock})
+                                 json={'hblock': hblock})
             self.current_updates = dict()
             if resp.status_code == 200:
                 if resp.json()['valid']:
