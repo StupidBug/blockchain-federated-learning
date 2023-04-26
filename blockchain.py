@@ -146,6 +146,7 @@ class Block:
         ''' 
         Function to return the update string values in the required format per block
         '''
+
         return "'index': {index},\
             'miner': {miner},\
             'timestamp': {timestamp},\
@@ -170,6 +171,7 @@ class Blockchain(object):
 
     def __init__(self, miner_id, base_model=None, gen=False, update_limit=10, time_limit=1800):
         """
+        初始化区块链
         :param miner_id: 矿工节点的地址 ip:port
         :param base_model: 初始模型
         :param gen: 是否为创世区块
@@ -187,7 +189,7 @@ class Blockchain(object):
         if gen:
             genesis, hgenesis = self.make_block(base_model=base_model, previous_hash=1)
             self.store_block(genesis, hgenesis)
-        self.nodes = set()
+        self.node_addresses = set()
 
     def register_node(self, address):
         """
@@ -196,9 +198,10 @@ class Blockchain(object):
         :return:
         """
         if address[:4] != "http":
-            address = "http://"+address
+            address = "http://" + address
+        # 解析url通过.netloc获得url中的ip:port部分
         parsed_url = urlparse(address)
-        self.nodes.add(parsed_url.netloc)
+        self.node_addresses.add(parsed_url.netloc)
         print("Registered node", address)
 
     def make_block(self, previous_hash=None, base_model=None):
@@ -336,8 +339,8 @@ class Blockchain(object):
             curren_index += 1
         return True
 
-    def resolve_conflicts(self, stop_event):
-        neighbours = self.nodes
+    def resolve_conflicts(self,stop_event):
+        neighbours = self.node_addresses
         new_chain = None
         bnode = None
         max_length = len(self.hashchain)
