@@ -5,6 +5,7 @@ import log
 from utils import *
 from torch.utils.data import Dataset, random_split
 from datasets import GlobalDataset, NodeDataset
+from argparse import ArgumentParser
 import torchvision.transforms as transforms
 
 logger = log.setup_custom_logger("data")
@@ -17,7 +18,7 @@ def save_data(dataset, filename):
     :param filename: 数据集路径
     :param dataset: 数据集
     """
-    torch.save(dataset, dataset_dir_path + filename)
+    torch.save(dataset, dataset_dir + filename)
 
 
 def load_data(filename):
@@ -26,7 +27,7 @@ def load_data(filename):
     :param filename: 文件名
     :return: 数据集
     """
-    return torch.load(dataset_dir_path + filename)
+    return torch.load(dataset_dir + filename)
 
 
 def show_dataset_details(dataset):
@@ -56,8 +57,8 @@ def get_cifar10_dataset():
 
     transform = transforms.Compose([transforms.ToTensor()])
 
-    train_ds = GlobalDataset(dataset_dir_path, train=True, transform=transform, name="CIFAR10_TRAIN")
-    test_ds = GlobalDataset(dataset_dir_path, train=False, transform=transform, name="CIFAR10_TEST")
+    train_ds = GlobalDataset(dataset_dir, train=True, transform=transform, name="CIFAR10_TRAIN")
+    test_ds = GlobalDataset(dataset_dir, train=False, transform=transform, name="CIFAR10_TEST")
 
     return train_ds, test_ds
 
@@ -68,11 +69,11 @@ def save_dataset(dateset, dataset_name):
     :param dateset: 数据集
     :param dataset_name: 数据集文件名
     """
-    torch.save(dateset, dataset_dir_path + path_separator + dataset_name)
+    torch.save(dateset, dataset_dir + path_separator + dataset_name)
 
 
 def prepare_data():
-    logger.info("开始数据准备工作————数据本地存放路径:{}".format(dataset_dir_path))
+    logger.info("开始数据准备工作————数据本地存放路径:{}".format(dataset_dir))
     train_ds, test_ds = get_cifar10_dataset()
     show_dataset_details(train_ds)
     save_dataset(train_ds, train_ds.name)
@@ -80,15 +81,19 @@ def prepare_data():
     show_dataset_details(test_ds)
     for n, d in enumerate(split_dataset(train_ds)):
         node_name = "node_" + str(n)
-        node_dataset = NodeDataset(dataset_dir=dataset_dir_path, name=node_name, dataset=d)
+        node_dataset = NodeDataset(dataset_dir=dataset_dir, name=node_name, dataset=d)
         save_dataset(node_dataset, node_dataset.name)
         show_dataset_details(node_dataset)
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('-d', '--dataset_dir', default='D:\\dataset', help='dataset数据存放文件夹')
+    parser.add_argument('-n', '--node_num', default=10, type=int, help='节点数量')
+    args = parser.parse_args()
     # 数据本地存放路径
-    dataset_dir_path = "D:\\dataset"
+    dataset_dir = args.dataset_dir
     # 数据分割数量
-    split_count = 5
+    split_count = args.node_num
     # 开始准备数据
     prepare_data()
