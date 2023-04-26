@@ -3,7 +3,6 @@
    Blockchain script 
 """
 
-import hashlib
 import json
 import time
 from flask import Flask,jsonify,request
@@ -18,6 +17,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 from federatedlearner import *
 from datasets import *
+from utils import *
 
 
 def compute_global_model(base_model, updates, learning_rate):
@@ -102,17 +102,21 @@ class Update:
 
 
 class Block:
-    def __init__(self, miner, index, basemodel, accuracy, updates, timestamp=time.time()):
+    def __init__(self, previous_hash, miner_id, index, basemodel, accuracy, updates, time_limit, update_limit,
+                 timestamp=time.time()):
 
         ''' 
         Function to initialize the update string parameters per created block
         '''
+        self.previous_hash = previous_hash
         self.index = index
-        self.miner = miner
+        self.miner_id = miner_id
         self.timestamp = timestamp
         self.basemodel = basemodel
         self.accuracy = accuracy
         self.updates = updates
+        self.time_limit = time_limit
+        self.update_limit = update_limit
 
     @staticmethod
     def from_string(metadata):
@@ -143,7 +147,7 @@ class Block:
 
     def __str__(self):
 
-        ''' 
+        '''
         Function to return the update string values in the required format per block
         '''
 
@@ -155,13 +159,28 @@ class Block:
             'updates': {updates},\
             'updates_size': {updates_size}".format(
                 index = self.index,
-                miner = self.miner,
+                miner = self.miner_id,
                 basemodel = codecs.encode(pickle.dumps(sorted(self.basemodel.items())), "base64").decode(),
                 accuracy = self.accuracy,
                 timestamp = self.timestamp,
                 updates = str([str(x[0])+"@|!|@"+str(x[1]) for x in sorted(self.updates.items())]),
                 updates_size = str(len(self.updates))
             )
+
+    def get_content(self):
+        hash_block = {
+            'index': self.index,
+            'proof': random.randint(0, 100000000),
+            'previous_hash': self.previous_hash,
+            'miner': self.miner_id,
+            'accuracy': str(self.accuracy),
+            'timestamp': time.time(),
+            'time_limit': self.time_limit,
+            'update_limit': self.update_limit,
+            'model_hash': hash_sha256(codecs.encode(pickle.dumps(sorted(self.basemodel.items())), "base64").decode())
+        }
+        hash_block['hash'] = hash_sha256(str(hash_block))
+        return hash_block
 
 
 class Blockchain(object):
@@ -180,15 +199,17 @@ class Blockchain(object):
         """
         super(Blockchain, self).__init__()
         self.miner_id = miner_id
-        self.curblock = None
+        self.cursor_block = None
         self.hashchain = []
         self.current_updates = dict()
         self.update_limit = update_limit
         self.time_limit = time_limit
-        
+
+        # 构造创世区块，并添加入区块链
         if gen:
-            genesis, hgenesis = self.make_block(base_model=base_model, previous_hash=1)
-            self.store_block(genesis, hgenesis)
+            genesis_block = self.make_block(base_model=base_model, previous_hash=1)
+            self.store_block(genesis_block)
+
         self.node_addresses = set()
 
     def register_node(self, address):
@@ -219,49 +240,39 @@ class Blockchain(object):
             update_limit = self.last_block['update_limit']
             time_limit = self.last_block['time_limit']
         if previous_hash is None:
-            previous_hash = self.hash(str(sorted(self.last_block.items())))
+            previous_hash = hash_sha256(str(sorted(self.last_block.items())))
         if base_model is not None:
             accuracy = base_model['accuracy']
             basemodel = base_model['model']
         elif len(self.current_updates) > 0:
-            base = self.curblock.basemodel
+            base = self.cursor_block.basemodel
             accuracy, basemodel = compute_global_model(base, self.current_updates, 1)
-        index = len(self.hashchain)+1
+        index = len(self.hashchain) + 1
         block = Block(
-            miner=self.miner_id,
+            previous_hash=previous_hash,
+            miner_id=self.miner_id,
             index=index,
             basemodel=basemodel,
             accuracy=accuracy,
-            updates=self.current_updates
+            updates=self.current_updates,
+            time_limit=time_limit,
+            update_limit=update_limit
             )
-        hash_block = {
-            'index': index,
-            'hash': self.hash(str(block)),
-            'proof': random.randint(0, 100000000),
-            'previous_hash': previous_hash,
-            'miner': self.miner_id,
-            'accuracy': str(accuracy),
-            'timestamp': time.time(),
-            'time_limit': time_limit,
-            'update_limit': update_limit,
-            'model_hash': self.hash(codecs.encode(pickle.dumps(sorted(block.basemodel.items())), "base64").decode())
-            }
-        return block, hash_block
+        return block
 
-    def store_block(self, block, hashblock):
+    def store_block(self, block):
         """
         存储区块
         :param block: 区块对象
-        :param hashblock: 区块的内容
         :return:
         """
-        if self.curblock:
-            with open("blocks/federated_model" + str(self.curblock.index) + ".block", "wb") as f:
-                pickle.dump(self.curblock, f)
-        self.curblock = block
-        self.hashchain.append(hashblock)
+        if self.cursor_block:
+            with open("blocks/federated_model" + str(self.cursor_block.index) + ".block", "wb") as f:
+                pickle.dump(self.cursor_block, f)
+        self.cursor_block = block
+        # 向区块链中添加区块
+        self.hashchain.append(block.get_content())
         self.current_updates = dict()
-        return hashblock
 
     def new_update(self, client, baseindex, update, datasize, computing_time):
         self.current_updates[client] = Update(
@@ -273,14 +284,6 @@ class Blockchain(object):
             )
         return self.last_block['index']+1
 
-    @staticmethod
-    def hash(text):
-        """
-        sha256 哈希函数
-        :param text: 需要哈希的内容
-        :return: 哈希后的结果
-        """
-        return hashlib.sha256(text.encode()).hexdigest()
 
     @property
     def last_block(self):
@@ -339,11 +342,18 @@ class Blockchain(object):
             curren_index += 1
         return True
 
-    def resolve_conflicts(self,stop_event):
+    def resolve_conflicts(self, stop_event):
+        """
+        冲突解决————当其他节点中出现更长且有效的区块链时，将自身维护的区块链替换成最长有效区块链
+        :param stop_event:
+        :return:
+        """
         neighbours = self.node_addresses
         new_chain = None
         bnode = None
         max_length = len(self.hashchain)
+
+        # 获取最长有效链
         for node in neighbours:
             response = requests.get('http://{node}/chain'.format(node=node))
             if response.status_code == 200:
@@ -353,6 +363,8 @@ class Blockchain(object):
                     max_length = length
                     new_chain = chain
                     bnode = node
+
+        # 更新节点维护的区块链，并获取最新区块对象
         if new_chain:
             stop_event.set()
             self.hashchain = new_chain
@@ -362,6 +374,6 @@ class Blockchain(object):
             self.current_updates = dict()
             if resp.status_code == 200:
                 if resp.json()['valid']:
-                    self.curblock = Block.from_string(resp.json()['block'])
+                    self.cursor_block = Block.from_string(resp.json()['block'])
             return True
         return False

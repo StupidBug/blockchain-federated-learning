@@ -291,16 +291,19 @@ if __name__ == '__main__':
     if args.genesis == 0 and args.maddress is None:
         raise ValueError("Must set genesis=1 or specify maddress")
     delete_prev_blocks()
-    # 如何需要新启动一个区块链，则初始化区块链设置
+
+    # 如果该矿工为第一个矿工，则需初始化一个新的区块链
     if args.genesis == 1:
         model = make_base()
         logger.info("base model accuracy:", model['accuracy'])
         status['blockchain'] = Blockchain(address, model, True, args.ulimit)
-    #
+
+    # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:
         status['blockchain'] = Blockchain(address)
         status['blockchain'].register_node(args.maddress)
         requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
+
     # 开启矿工服务
     app.run(host=args.host, port=args.port)
