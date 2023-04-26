@@ -113,7 +113,7 @@ class Client:
     def work(self, epochs):
         """
         client 本地训练模型并发送交易给区块链
-        :param epochs: 本地训练轮次
+        :param epochs: 训练轮次，每训练完一个轮次将发送至区块链中
         :return:
         """
         # 最新区块的index
@@ -150,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
     parser.add_argument('-d', '--dataset_dir', default='data/mnist.d', help='dataset数据存放文件夹')
     parser.add_argument('-e', '--epochs', default=10, type=int, help='client本地训练的轮次')
-    parser.add_argument('-e', '--name', default="node_1", type=str, help='client名字')
+    parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
     args = parser.parse_args()
 
     client = Client(args.miner, args.dataset_dir, args.name)
