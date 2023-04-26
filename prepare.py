@@ -73,7 +73,6 @@ def save_dataset(dateset, dataset_name):
 
 
 def prepare_data():
-    logger.info("开始数据准备工作————数据本地存放路径:{}".format(dataset_dir))
     train_ds, test_ds = get_cifar10_dataset()
     show_dataset_details(train_ds)
     save_dataset(train_ds, train_ds.name)
@@ -89,11 +88,11 @@ def prepare_data():
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-d', '--dataset_dir', default='D:\\dataset', help='dataset数据存放文件夹')
-    parser.add_argument('-n', '--node_num', default=10, type=int, help='节点数量')
+    parser.add_argument('-n', '--node_num', default=5, type=int, help='节点数量')
     args = parser.parse_args()
     # 数据本地存放路径
     dataset_dir = args.dataset_dir
     # 数据分割数量
     split_count = args.node_num
-    # 开始准备数据
+    logger.info("开始准备数据集————节点数量为:{} 数据本地存放路径:{}".format(split_count, dataset_dir))
     prepare_data()

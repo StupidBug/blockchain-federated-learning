@@ -182,7 +182,7 @@ class Block:
             'timestamp': time.time(),
             'time_limit': self.time_limit,
             'update_limit': self.update_limit,
-            'model_hash': hash_sha256(codecs.encode(pickle.dumps(sorted(self.basemodel.items())), "base64").decode())
+            'model_hash': hash_sha256(codecs.encode(pickle.dumps(self.basemodel), "base64").decode())
         }
         hash_block['hash'] = hash_sha256(str(hash_block))
         return hash_block

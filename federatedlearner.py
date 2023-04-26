@@ -143,13 +143,7 @@ class NNWorker:
 
     def get_model(self):
 
-        '''
-        Function to get the model's trainable_parameter values
-        '''
-        varsk = {tf.trainable_variables()[i].name[:2]: tf.trainable_variables()[i].eval(self.sess) for i in
-                 range(len(tf.trainable_variables()))}
-        varsk["size"] = self.size
-        return varsk
+        return self.model
 
     def close(self):
         """

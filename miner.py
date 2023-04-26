@@ -7,6 +7,7 @@ from blockchain import *
 from threading import Thread, Event
 from federatedlearner import *
 from datasets import GlobalDataset, NodeDataset
+import torchvision.transforms as transforms
 from model import *
 import codecs
 import os
@@ -17,17 +18,17 @@ import log
 logger = log.setup_custom_logger("miner")
 
 
-def make_base():
+def make_base(dataset_dir):
     """
     在初始化区块链的时候，需要通过 make_base 创建一个初始模型，然后将该模型添加区块链中
     随后 client 提交的 updates 将在这个初始模型上进行更改
     :return:
     """
     # TODO 是否使用多种模型（看进度）
-    net = SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
-
-    global_dataset = GlobalDataset(root="/tmp/dataset", train=False, )
-    dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True, num_workers=4)
+    # 必加，原理暂不清楚
+    transform = transforms.Compose([transforms.ToTensor()])
+    global_dataset = GlobalDataset(root=dataset_dir, train=False, transform=transform)
+    dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True)
     worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
                       epochs=None, device="cuda")
     worker.build_base()
@@ -281,8 +282,9 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-p', '--port', default=5000, type=int, help='矿工监听的端口')
     parser.add_argument('-i', '--host', default='127.0.0.1', help='矿工的IP地址')
-    parser.add_argument('-g', '--genesis', default=0, type=int, help='初始化创世区块')
-    parser.add_argument('-l', '--updateLimit', default=10, type=int, help='单个区块中最多包含多少个更新')
+    parser.add_argument('-g', '--genesis', default=1, type=int, help='初始化创世区块')
+    parser.add_argument('-l', '--update_limit', default=10, type=int, help='单个区块中最多包含多少个更新')
+    parser.add_argument('-d', '--dataset_dir', default="D:\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
     args = parser.parse_args()
     # 矿工地址
@@ -294,9 +296,10 @@ if __name__ == '__main__':
 
     # 如果该矿工为第一个矿工，则需初始化一个新的区块链
     if args.genesis == 1:
-        model = make_base()
-        logger.info("base model accuracy:", model['accuracy'])
-        status['blockchain'] = Blockchain(address, model, True, args.ulimit)
+        logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(address))
+        model = make_base(args.dataset_dir)
+        logger.info("区块链中初始全局模型测试集准确率为:{}".format(model['accuracy']))
+        status['blockchain'] = Blockchain(address, model, True, args.update_limit)
 
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:

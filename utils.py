@@ -20,6 +20,9 @@ def compute_accuracy(model, dataloader, get_confusion_matrix=False, device="cuda
         model.eval()
         was_training = True
 
+    # move the model to cuda device:
+    model.to(device)
+
     true_labels_list, pred_labels_list = np.array([]), np.array([])
 
     if type(dataloader) == type([1]):
