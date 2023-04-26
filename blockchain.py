@@ -33,7 +33,7 @@ def compute_global_model(base_model, updates, learning_rate):
     dataset = GlobalDataset("d:/dataset", train=False)
     dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
     worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
-                      epochs=None, device="cuda")
+                      epochs=None, device="cuda", learning_rate=learning_rate)
     worker.build(base_model, updates)
     model = worker.get_model()
     accuracy = worker.evaluate()
@@ -117,6 +117,7 @@ class Block:
         self.updates = updates
         self.time_limit = time_limit
         self.update_limit = update_limit
+        self.content = self.make_content()
 
     @staticmethod
     def from_string(metadata):
@@ -167,7 +168,11 @@ class Block:
                 updates_size = str(len(self.updates))
             )
 
-    def get_content(self):
+    def make_content(self):
+        """
+        获取区块信息字典字典
+        :return:
+        """
         hash_block = {
             'index': self.index,
             'proof': random.randint(0, 100000000),
@@ -271,7 +276,7 @@ class Blockchain(object):
                 pickle.dump(self.cursor_block, f)
         self.cursor_block = block
         # 向区块链中添加区块
-        self.hashchain.append(block.get_content())
+        self.hashchain.append(block.content)
         self.current_updates = dict()
 
     def new_update(self, client, baseindex, update, datasize, computing_time):
@@ -309,7 +314,7 @@ class Blockchain(object):
             if hblock['proof'] % 1000 == 0:
                 print("mining", hblock['proof'])
         if stopped is False:
-            self.store_block(block, hblock)
+            self.store_block(block)
         if stopped:
             print("Stopped")
         else:
@@ -332,7 +337,7 @@ class Blockchain(object):
         curren_index = 1
         while curren_index < len(hchain):
             hblock = hchain[curren_index]
-            if hblock['previous_hash'] != self.hash(str(sorted(last_block.items()))):
+            if hblock['previous_hash'] != hash_sha256(str(sorted(last_block.items()))):
                 print("prev_hash diverso", curren_index)
                 return False
             if not self.valid_proof(str(sorted(hblock.items()))):

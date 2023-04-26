@@ -189,8 +189,8 @@ def get_block():
     values = request.get_json()
     hblock = values['hblock']
     block = None
-    if status['blockchain'].curblock.index == hblock['index']:
-        block = status['blockchain'].curblock
+    if status['blockchain'].cursor_block.index == hblock['index']:
+        block = status['blockchain'].cursor_block
     elif os.path.isfile("./blocks/federated_model"+str(hblock['index'])+".block"):
         with open("./blocks/federated_model"+str(hblock['index'])+".block", "rb") as f:
             block = pickle.load(f)
@@ -203,7 +203,7 @@ def get_block():
                 with open("./blocks/federated_model"+str(hblock['index'])+".block", "wb") as f:
                     pickle.dump(block, f)
     valid = False
-    if Blockchain.hash(str(block)) == hblock['hash']:
+    if hash_sha256(str(block)) == hblock['hash']:
         valid = True
     response = {
         'block': str(block),
@@ -217,8 +217,8 @@ def get_model():
     values = request.get_json()
     hblock = values['hblock']
     block = None
-    if status['blockchain'].curblock.index == hblock['index']:
-        block = status['blockchain'].curblock
+    if status['blockchain'].cursor_block.index == hblock['index']:
+        block = status['blockchain'].cursor_block
     elif os.path.isfile("./blocks/federated_model"+str(hblock['index'])+".block"):
         with open("./blocks/federated_model"+str(hblock['index'])+".block", "rb") as f:
             block = pickle.load(f)
@@ -232,7 +232,7 @@ def get_model():
                     pickle.dump(block, f)
     valid = False
     model = block.basemodel
-    if Blockchain.hash(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode()) == hblock['model_hash']:
+    if hash_sha256(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode()) == hblock['model_hash']:
         valid = True
     response = {
         'model': codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode(),
