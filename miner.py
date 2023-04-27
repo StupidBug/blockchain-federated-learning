@@ -83,6 +83,11 @@ def mine():
 
 
 def on_end_mining(stopped):
+    """
+    通知其他节点停止挖取区块
+    :param stopped:
+    :return:
+    """
     if status['s'] == "receiving":
         return
     if stopped:
@@ -214,6 +219,11 @@ def get_block():
 
 @app.route('/model', methods=['POST'])
 def get_model():
+    """
+    返回请求区块中对应的模型————找出本地存储的对应区块的模型进行返回
+    :return:
+    """
+    # TODO 取模型过程待更新
     values = request.get_json()
     hblock = values['hblock']
     block = None
