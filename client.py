@@ -25,7 +25,7 @@ class Client:
         self.miner = miner
         self.dataset = self.load_dataset()
 
-    def get_last_block(self):
+    def get_latest_block(self):
         """
         获取最新的区块
         :return:
@@ -49,10 +49,17 @@ class Client:
         print("Invalid block!")
         return None
 
-    def get_model(self, hblock):
+    def get_model(self, latest_block):
+        """
+        根据区块信息获取区块中的模型
+        :param latest_block:
+        :return:
+        """
+        # TODO 待修改
         response = requests.post('http://{node}/model'.format(node=self.miner),
-                                 json={'hblock': hblock})
+                                 json={'hblock': latest_block})
         if response.json()['valid']:
+            # TODO
             return dict(pickle.loads(codecs.decode(response.json()['model'].encode(), "base64")))
         print("Invalid model!")
         return None
@@ -116,33 +123,32 @@ class Client:
         :param epochs: 训练轮次，每训练完一个轮次将发送至区块链中
         :return:
         """
-        # 最新区块的index
-        last_model_index = -1
+        # 区块链中最新区块的区块高度
+        latest_block_height = -1
         for epoch in range(epochs):
             # 等待区块链可接受
             wait = True
             while wait:
                 status = client.get_miner_status()
-                if status['status'] != "receiving" or last_model_index == status['last_model_index']:
+                if status['status'] != "receiving" or latest_block_height == status['last_model_index']:
                     time.sleep(10)
                 else:
                     wait = False
 
-            # 获取当前区块链信息
-            hblock = client.get_last_block()
-            base_index = hblock['index']
-            last_model_index = base_index
-            logger.info("当前区块链中全局模型的准确率: {}".format(hblock['accuracy']))
+            # 获取最新区块信息
+            latest_block = client.get_latest_block()
+            base_block_height = latest_block['index']
+            logger.info("区块链中最新区块全局模型的准确率: {}".format(latest_block['accuracy']))
 
             # 开始进行本地训练
-            model = client.get_model(hblock)
+            model = client.get_model(latest_block)
             update, accuracy, cmp_time = client.update_model(model, 10)
             # 保存梯度更新
             with open("clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
                 pickle.dump(update, f)
             logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, epoch, accuracy))
 
-            client.send_update(update, cmp_time, base_index)
+            client.send_update(update, cmp_time, base_block_height)
             
 
 if __name__ == '__main__':
