@@ -89,6 +89,7 @@ def mine():
 def on_end_mining(stopped):
     """
     通知其他节点停止挖取区块
+
     :param stopped:
     :return:
     """
@@ -105,6 +106,7 @@ def on_end_mining(stopped):
 def new_transaction():
     """
     处理新的一笔交易
+
     :return:
     """
     # 区块链状态校验
@@ -141,8 +143,10 @@ def new_transaction():
 def get_status():
     """
     获取 miner 状态
-    :return:
+
+    :return 节点状态: [receiving | mining]
     """
+
     response = {
         'status': status['s'],
         'last_model_index': status['blockchain'].latest_block['block_height']
@@ -154,8 +158,10 @@ def get_status():
 def full_chain():
     """
     获取完整的区块链
-    :return:
+
+    :return: 区块信息列表（区块链）
     """
+
     response = {
         'chain': status['blockchain'].hashchain,
         'length': len(status['blockchain'].hashchain)
@@ -167,8 +173,10 @@ def full_chain():
 def register_nodes():
     """
     注册节点————将节点添加到本地的区块链中，并向其他区块链节点发送注册请求
-    :return:
+
+    :return: 已注册矿工节点列表
     """
+
     values = request.get_json()
     node_addresses = values.get('nodes')
 
@@ -197,8 +205,10 @@ def register_nodes():
 def get_block():
     """
     根据block_info获取完整的区块对象的字节序列
-    :return:
+
+    :return: 区块对象的字节序列
     """
+
     request_json = request.get_json()
     block_info = request_json['block_info']
     block: bytes = bytes()
@@ -228,7 +238,7 @@ def get_block():
         valid = False
 
     response = {
-        'block': json.dumps(block),
+        'block': block,
         'valid': valid
     }
     return jsonify(response), 200
@@ -259,9 +269,10 @@ def stop_mining():
     return jsonify(response), 200
 
 
-def delete_prev_blocks():
+def delete_prev_blocks() -> None:
     """
     删除之前的区块文件，根据文件后缀筛选
+
     :return:
     """
     files = glob.glob('blocks/*.block')
