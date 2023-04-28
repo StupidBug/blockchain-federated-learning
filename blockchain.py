@@ -140,7 +140,6 @@ class Blockchain(object):
             'timestamp': time.time(),
             'time_limit': block.time_limit,
             'update_limit': block.update_limit,
-            'model_hash': hash_sha256(codecs.encode(pickle.dumps(block.basemodel), "base64").decode()),
             'hash': hash_sha256(str(block))
         }
         return info

@@ -11,6 +11,7 @@ import requests
 from argparse import ArgumentParser
 from datasets import *
 import time
+from typing import Union
 
 
 class Client:
@@ -41,28 +42,31 @@ class Client:
         if response.status_code == 200:
             return response.json()['chain']
 
-    def get_full_block(self, block_content: dict):
-        response = requests.post('http://{node}/block'.format(node=self.miner),
-                                 json={'block_content': block_content})
-        if response.json()['valid']:
-            return Block.from_string(response.json()['block'])
-        print("Invalid block!")
-        return None
+    def get_full_block(self, block_info: dict) -> Union[Block, None]:
+        """
+        根据区块信息获取完整的区块对象
 
-    def get_model(self, block_info: dict):
+        :param block_info: 区块信息
+        :return: 区块对象
         """
-        根据区块信息获取区块中的模型
-        :param block_info:
-        :return:
-        """
-        # TODO 待修改
-        response = requests.post('http://{node}/model'.format(node=self.miner),
+
+        block = None
+        response = requests.post('http://{node}/block'.format(node=self.miner),
                                  json={'block_info': block_info})
         if response.json()['valid']:
-            # TODO
-            return dict(pickle.loads(codecs.decode(response.json()['model'].encode(), "base64")))
-        print("Invalid model!")
-        return None
+            block = pickle.loads(response.json()['block'])
+        return block
+
+    def get_model(self, block_info: dict) -> nn.Module:
+        """
+        根据区块信息获取区块中的模型
+
+        :param block_info: 区块信息
+        :return: 模型对象
+        """
+
+        block: Block = self.get_full_block(block_info)
+        return block.basemodel
 
     def get_miner_status(self):
         response = requests.get('http://{node}/status'.format(node=self.miner))

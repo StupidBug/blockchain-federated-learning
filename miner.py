@@ -234,46 +234,6 @@ def get_block():
     return jsonify(response), 200
 
 
-@app.route('/model', methods=['POST'])
-def get_model():
-    """
-    返回请求区块中对应的模型————找出本地存储的对应区块的模型进行返回
-    :return:
-    """
-    # TODO 取模型过程待更新
-    request_json = request.get_json()
-    block_info = request_json['block_info']
-    block = None
-
-    # 从最新区块中取模型
-    if status['blockchain'].cursor_block.index == block_info['index']:
-        block = status['blockchain'].cursor_block
-
-    # 从本地文件取模型
-    elif os.path.isfile("./blocks/federated_model"+str(block_info['index'])+".block"):
-        with open("./blocks/federated_model"+str(block_info['index'])+".block", "rb") as f:
-            block = pickle.load(f)
-
-    # 从其他节点获取模型
-    else:
-        resp = requests.post('http://{node}/block'.format(node=block_info['miner']), json={'block_info': block_info})
-        if resp.status_code == 200:
-            raw_block = resp.json()['block']
-            if raw_block:
-                block = pickle.loads(raw_block)
-                with open("./blocks/federated_model"+str(block_info['index'])+".block", "wb") as f:
-                    pickle.dump(block, f)
-    valid = False
-    model = block.basemodel
-    if hash_sha256(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode()) == block_info['model_hash']:
-        valid = True
-    response = {
-        'model': codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode(),
-        'valid': valid
-    }
-    return jsonify(response), 200
-
-
 @app.route('/nodes/resolve', methods=["GET"])
 def consensus():
     replaced = status['blockchain'].resolve_conflicts(STOP_EVENT)
