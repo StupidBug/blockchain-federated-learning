@@ -25,14 +25,14 @@ class Client:
         self.miner = miner
         self.dataset = self.load_dataset()
 
-    def get_latest_block(self):
+    def get_latest_block(self) -> dict:
         """
         获取最新的区块
         :return:
         """
         return self.get_chain()[-1]
 
-    def get_chain(self):
+    def get_chain(self) -> list[dict]:
         """
         获取完整的区块链
         :return:
@@ -41,23 +41,23 @@ class Client:
         if response.status_code == 200:
             return response.json()['chain']
 
-    def get_full_block(self, hblock):
+    def get_full_block(self, block_content: dict):
         response = requests.post('http://{node}/block'.format(node=self.miner),
-                                 json={'hblock': hblock})
+                                 json={'block_content': block_content})
         if response.json()['valid']:
             return Block.from_string(response.json()['block'])
         print("Invalid block!")
         return None
 
-    def get_model(self, latest_block):
+    def get_model(self, block_info: dict):
         """
         根据区块信息获取区块中的模型
-        :param latest_block:
+        :param block_info:
         :return:
         """
         # TODO 待修改
         response = requests.post('http://{node}/model'.format(node=self.miner),
-                                 json={'hblock': latest_block})
+                                 json={'block_info': block_info})
         if response.json()['valid']:
             # TODO
             return dict(pickle.loads(codecs.decode(response.json()['model'].encode(), "base64")))

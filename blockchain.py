@@ -4,6 +4,7 @@
 """
 
 import json
+import pickle
 import time
 from urllib.parse import urlparse
 import requests
@@ -44,6 +45,7 @@ def find_len(text, strk):
     '''
     return text.find(strk), len(strk)
 
+
 class Update:
     def __init__(self, client, baseindex, update, datasize, computing_time, timestamp=time.time()):
 
@@ -56,45 +58,6 @@ class Update:
         self.client = client
         self.datasize = datasize
         self.computing_time = computing_time
-
-    @staticmethod
-    def from_string(metadata):
-
-        ''' 
-        Function to get the update string values
-        '''
-        i,l = find_len(metadata,"'timestamp':")
-        i2,l2 = find_len(metadata,"'baseindex':")
-        i3,l3 = find_len(metadata,"'update': ")
-        i4,l4 = find_len(metadata,"'client':")
-        i5,l5 = find_len(metadata,"'datasize':")
-        i6,l6 = find_len(metadata,"'computing_time':")
-        baseindex = int(metadata[i2+l2:i3].replace(",",'').replace(" ",""))
-        update = dict(pickle.loads(codecs.decode(metadata[i3+l3:i4-1].encode(), "base64")))
-        timestamp = float(metadata[i+l:i2].replace(",",'').replace(" ",""))
-        client = metadata[i4+l4:i5].replace(",",'').replace(" ","")
-        datasize = int(metadata[i5+l5:i6].replace(",",'').replace(" ",""))
-        computing_time = float(metadata[i6+l6:].replace(",",'').replace(" ",""))
-        return Update(client, baseindex, update, datasize, computing_time, timestamp)
-
-    def __str__(self):
-
-        ''' 
-        Function to return the update string values in the required format
-        '''
-        return "'timestamp': {timestamp},\
-            'baseindex': {baseindex},\
-            'update': {update},\
-            'client': {client},\
-            'datasize': {datasize},\
-            'computing_time': {computing_time}".format(
-                timestamp=self.timestamp,
-                baseindex=self.baseindex,
-                update=codecs.encode(pickle.dumps(sorted(self.update.items())), "base64").decode(),
-                client=self.client,
-                datasize=self.datasize,
-                computing_time=self.computing_time
-            )
 
 
 class Block:
@@ -113,60 +76,9 @@ class Block:
         self.updates = updates
         self.time_limit = time_limit
         self.update_limit = update_limit
-        self.info = self.info()
 
-    @staticmethod
-    def from_string(metadata):
-
-        ''' 
-        Function to get the update string values per block
-        '''
-        i,l = find_len(metadata,"'timestamp':")
-        i2,l2 = find_len(metadata,"'basemodel': ")
-        i3,l3 = find_len(metadata,"'index':")
-        i4,l4 = find_len(metadata,"'miner':")
-        i5,l5 = find_len(metadata,"'accuracy':")
-        i6,l6 = find_len(metadata,"'updates':")
-        i9,l9 = find_len(metadata,"'updates_size':")
-        index = int(metadata[i3+l3:i4].replace(",",'').replace(" ",""))
-        miner = metadata[i4+l4:i].replace(",",'').replace(" ","")
-        timestamp = float(metadata[i+l:i2].replace(",",'').replace(" ",""))
-        basemodel = dict(pickle.loads(codecs.decode(metadata[i2+l2:i5-1].encode(), "base64")))
-        accuracy = float(metadata[i5+l5:i6].replace(",",'').replace(" ",""))
-        su = metadata[i6+l6:i9]
-        su = su[:su.rfind("]")+1]
-        updates = dict()
-        for x in json.loads(su):
-            isep,lsep = find_len(x,"@|!|@")
-            updates[x[:isep]] = Update.from_string(x[isep+lsep:])
-        updates_size = int(metadata[i9+l9:].replace(",",'').replace(" ",""))
-        return Block(miner, index, basemodel, accuracy, updates, timestamp)
-
-    def info(self) -> dict:
-        """
-        获取区块信息字典字典
-        :return:
-        """
-        content = {
-            'index': self.block_height,
-            'proof': random.randint(0, 100000000),
-            'previous_hash': self.previous_hash,
-            'miner': self.miner_id,
-            'accuracy': str(self.accuracy),
-            'timestamp': time.time(),
-            'time_limit': self.time_limit,
-            'update_limit': self.update_limit,
-            'model_hash': hash_sha256(codecs.encode(pickle.dumps(self.basemodel), "base64").decode()),
-            'hash': hash_sha256(str(self))
-        }
-
-        hash_info = hash_sha256(content)
-
-        info = {
-            "content": content,
-            "hash": hash_info
-        }
-        return info
+    def __str__(self):
+        return pickle.dumps(self)
 
 
 class Blockchain(object):
@@ -186,7 +98,7 @@ class Blockchain(object):
         :param time_limit: 训练时间限制
         """
         super(Blockchain, self).__init__()
-        self.cursor_block: Block
+        self.cursor_block = None
         self.miner_id = miner_id
         self.hashchain: list[dict] = []
         self.current_updates = dict()
@@ -213,7 +125,27 @@ class Blockchain(object):
         self.node_addresses.add(parsed_url.netloc)
         print("Registered node", address)
 
-    def make_block(self, previous_hash=None, base_model=None):
+    @staticmethod
+    def generate_block_info(block: Block) -> dict:
+        """
+        生成区块的关键信息，用于验证、检索等
+        :return:
+        """
+        info = {
+            'index': block.block_height,
+            'proof': random.randint(0, 100000000),
+            'previous_hash': block.previous_hash,
+            'miner': block.miner_id,
+            'accuracy': str(block.accuracy),
+            'timestamp': time.time(),
+            'time_limit': block.time_limit,
+            'update_limit': block.update_limit,
+            'model_hash': hash_sha256(codecs.encode(pickle.dumps(block.basemodel), "base64").decode()),
+            'hash': hash_sha256(str(block))
+        }
+        return info
+
+    def make_block(self, previous_hash=None, base_model=None) -> Block:
         """
         创建区块
         :param previous_hash: 上一区块的哈希值
@@ -225,10 +157,10 @@ class Blockchain(object):
         time_limit = self.time_limit
         update_limit = self.update_limit
         if len(self.hashchain) > 0:
-            update_limit = self.last_block['update_limit']
-            time_limit = self.last_block['time_limit']
+            update_limit = self.latest_block['update_limit']
+            time_limit = self.latest_block['time_limit']
         if previous_hash is None:
-            previous_hash = hash_sha256(str(sorted(self.last_block.items())))
+            previous_hash = hash_sha256(str(sorted(self.latest_block.items())))
         if base_model is not None:
             accuracy = base_model['accuracy']
             basemodel = base_model['model']
@@ -248,18 +180,23 @@ class Blockchain(object):
             )
         return block
 
-    def store_block(self, block):
+    def store_block(self, block: Block) -> None:
         """
-        存储区块
+        存储区块————完整的区块以文件的形式存储在本地，程序中只将每个
+        区块的关键信息字典，添加进区块链列表中
+
         :param block: 区块对象
         :return:
         """
-        if self.cursor_block:
+
+        if self.cursor_block is not None:
             with open("blocks/federated_model" + str(self.cursor_block.block_height) + ".block", "wb") as f:
                 pickle.dump(self.cursor_block, f)
-        self.cursor_block: Block = block
-        # 向区块链中添加区块
-        self.hashchain.append(block.content)
+            self.cursor_block = block
+
+        block_info = self.generate_block_info(block)
+        self.hashchain.append(block_info)
+        # 清空当前存储的梯度更新
         self.current_updates = dict()
 
     def new_update(self, client, baseindex, update, datasize, computing_time):
@@ -270,11 +207,10 @@ class Blockchain(object):
             datasize=datasize,
             computing_time=computing_time
             )
-        return self.last_block['index']+1
-
+        return self.latest_block['index'] + 1
 
     @property
-    def last_block(self):
+    def latest_block(self):
         """
         返回最新区块
         :return: 最新区块
@@ -357,11 +293,11 @@ class Blockchain(object):
             stop_event.set()
             self.hashchain = new_chain
             hblock = self.hashchain[-1]
-            resp = requests.post('http://{node}/block'.format(node=bnode),
-                                 json={'hblock': hblock})
+            rsp = requests.post('http://{node}/block'.format(node=bnode),
+                                json={'hblock': hblock})
             self.current_updates = dict()
-            if resp.status_code == 200:
-                if resp.json()['valid']:
-                    self.cursor_block = Block.from_string(resp.json()['block'])
+            if rsp.status_code == 200:
+                if rsp.json()['valid']:
+                    self.cursor_block = pickle.loads(rsp.json()['block'])
             return True
         return False

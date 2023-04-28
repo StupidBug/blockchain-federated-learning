@@ -2,11 +2,14 @@
  - Blockchain for Federated Learning -
            Mining script
 """
+import pickle
 
 from blockchain import *
 from threading import Thread, Event
 from federatedlearner import *
 from datasets import GlobalDataset, NodeDataset
+from flask import *
+from uuid import uuid4
 import torchvision.transforms as transforms
 from model import *
 import codecs
@@ -127,8 +130,8 @@ def new_transaction():
 
     # 交易合法性校验，成功则开始 mine
     if (status['s'] == 'receiving' and (
-        len(status["blockchain"].current_updates) >= status['blockchain'].last_block['update_limit'] or
-            time.time()-status['blockchain'].last_block['timestamp'] > status['blockchain'].last_block['time_limit'])):
+        len(status["blockchain"].current_updates) >= status['blockchain'].latest_block['update_limit'] or
+            time.time()-status['blockchain'].latest_block['timestamp'] > status['blockchain'].latest_block['time_limit'])):
         mine()
     response = {'message': "Update will be added to block {index}".format(index=index)}
     return jsonify(response), 201
@@ -142,7 +145,7 @@ def get_status():
     """
     response = {
         'status': status['s'],
-        'last_model_index': status['blockchain'].last_block['index']
+        'last_model_index': status['blockchain'].latest_block['block_height']
         }
     return jsonify(response), 200
 
@@ -192,27 +195,40 @@ def register_nodes():
 
 @app.route('/block', methods=['POST'])
 def get_block():
-    values = request.get_json()
-    hblock = values['hblock']
-    block = None
-    if status['blockchain'].cursor_block.index == hblock['index']:
-        block = status['blockchain'].cursor_block
-    elif os.path.isfile("./blocks/federated_model"+str(hblock['index'])+".block"):
-        with open("./blocks/federated_model"+str(hblock['index'])+".block", "rb") as f:
-            block = pickle.load(f)
+    """
+    根据block_info获取完整的区块对象的字节序列
+    :return:
+    """
+    request_json = request.get_json()
+    block_info = request_json['block_info']
+    block: bytes = bytes()
+
+    # 从cursor_block中获取完整区块
+    if status['blockchain'].cursor_block.block_height == block_info["block_height"]:
+        block = pickle.dumps(status['blockchain'].cursor_block)
+
+    # 从本地文件中获取完整区块
+    elif os.path.isfile("./blocks/federated_model" + block_info["block_height"] + ".block"):
+        with open("./blocks/federated_model" + block_info["block_height"] + ".block", "rb") as f:
+            block = f.read()
+
+    # 从其他节点获取完整区块
     else:
-        resp = requests.post('http://{node}/block'.format(node=hblock['miner']), json={'hblock': hblock})
-        if resp.status_code == 200:
-            raw_block = resp.json()['block']
-            if raw_block:
-                block = Block.from_string(raw_block)
-                with open("./blocks/federated_model"+str(hblock['index'])+".block", "wb") as f:
-                    pickle.dump(block, f)
-    valid = False
-    if hash_sha256(str(block)) == hblock['hash']:
+        rsp = requests.post('http://{node}/block'.format(node=['miner']), json=request_json)
+        if rsp.status_code == 200:
+            block = rsp.json()['block']
+            with open("./blocks/federated_model" + block_info["block_height"] + ".block", "wb") as f:
+                f.write(block)
+
+    # 验证区块哈希值是否满足
+    valid: bool
+    if hash_sha256(str(block)) == block_info['hash']:
         valid = True
+    else:
+        valid = False
+
     response = {
-        'block': str(block),
+        'block': json.dumps(block),
         'valid': valid
     }
     return jsonify(response), 200
@@ -225,25 +241,31 @@ def get_model():
     :return:
     """
     # TODO 取模型过程待更新
-    values = request.get_json()
-    hblock = values['hblock']
+    request_json = request.get_json()
+    block_info = request_json['block_info']
     block = None
-    if status['blockchain'].cursor_block.index == hblock['index']:
+
+    # 从最新区块中取模型
+    if status['blockchain'].cursor_block.index == block_info['index']:
         block = status['blockchain'].cursor_block
-    elif os.path.isfile("./blocks/federated_model"+str(hblock['index'])+".block"):
-        with open("./blocks/federated_model"+str(hblock['index'])+".block", "rb") as f:
+
+    # 从本地文件取模型
+    elif os.path.isfile("./blocks/federated_model"+str(block_info['index'])+".block"):
+        with open("./blocks/federated_model"+str(block_info['index'])+".block", "rb") as f:
             block = pickle.load(f)
+
+    # 从其他节点获取模型
     else:
-        resp = requests.post('http://{node}/block'.format(node=hblock['miner']), json={'hblock': hblock})
+        resp = requests.post('http://{node}/block'.format(node=block_info['miner']), json={'block_info': block_info})
         if resp.status_code == 200:
             raw_block = resp.json()['block']
             if raw_block:
-                block = Block.from_string(raw_block)
-                with open("./blocks/federated_model"+str(hblock['index'])+".block", "wb") as f:
+                block = pickle.loads(raw_block)
+                with open("./blocks/federated_model"+str(block_info['index'])+".block", "wb") as f:
                     pickle.dump(block, f)
     valid = False
     model = block.basemodel
-    if hash_sha256(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode()) == hblock['model_hash']:
+    if hash_sha256(codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode()) == block_info['model_hash']:
         valid = True
     response = {
         'model': codecs.encode(pickle.dumps(sorted(model.items())), "base64").decode(),
