@@ -11,7 +11,7 @@ import requests
 from argparse import ArgumentParser
 from datasets import *
 import time
-from typing import Union
+from typing import Union, Tuple
 
 
 class Client:
@@ -29,6 +29,7 @@ class Client:
     def get_latest_block(self) -> dict:
         """
         获取最新的区块
+
         :return:
         """
         return self.get_chain()[-1]
@@ -36,7 +37,8 @@ class Client:
     def get_chain(self) -> list[dict]:
         """
         获取完整的区块链
-        :return:
+
+        :return: 完整的区块信息列表
         """
         response = requests.get('http://{node}/chain'.format(node=self.miner))
         if response.status_code == 200:
@@ -73,17 +75,19 @@ class Client:
         if response.status_code == 200:
             return response.json()
 
-    def load_dataset(self):
+    def load_dataset(self) -> data.Dataset:
         """
         加载数据集
+
+        :return 数据集
         """
 
         return NodeDataset(self.dataset_dir, self.name)
 
-    def update_model(self, model, epochs):
-
+    def update_model(self, model, epochs) -> Tuple[nn.Module, float, float]:
         """
         client 在本地训练模型
+
         :param model: 本地当前模型
         :param epochs: 本地训练轮次
         :return:
@@ -99,33 +103,34 @@ class Client:
 
         worker.build(model)
         worker.train()
-        update = worker.get_model()
+        model_updated = worker.get_model()
         accuracy = worker.evaluate()
         worker.close()
-        return update, accuracy, time.time()-t
+        return model_updated, accuracy, time.time()-t
 
-    def send_update(self, update, cmp_time, baseindex):
+    def send_update(self, model_updated: nn.Module, cmp_time, base_block_height):
         """
         向矿工发送更新交易
-        :param update:
+
+        :param model_updated:
         :param cmp_time:
-        :param baseindex:
+        :param base_block_height:
         :return:
         """
         logger.info("Client:{} 正在向miner节点:{} 发送梯度更新交易".format(self.id, self.miner))
         requests.post('http://{node}/transactions/new'.format(node=self.miner), json={
                 'client': self.id,
-                'baseindex': baseindex,
-                'update': codecs.encode(pickle.dumps(sorted(update.items())), "base64").decode(),
-                # TODO 待更新
+                'base_block_height': base_block_height,
+                # TODO 学习这个编码
+                'update': codecs.encode(pickle.dumps(model_updated), "base64").decode(),
                 'datasize': len(self.dataset['train_images']),
                 'computing_time': cmp_time})
        
-    def work(self, epochs):
+    def work(self, epochs) -> None:
         """
         client 本地训练模型并发送交易给区块链
+
         :param epochs: 训练轮次，每训练完一个轮次将发送至区块链中
-        :return:
         """
         # 区块链中最新区块的区块高度
         latest_block_height = -1
@@ -141,18 +146,18 @@ class Client:
 
             # 获取最新区块信息
             latest_block = client.get_latest_block()
-            base_block_height = latest_block['index']
+            base_block_height = latest_block['block_height']
             logger.info("区块链中最新区块全局模型的准确率: {}".format(latest_block['accuracy']))
 
             # 开始进行本地训练
             model = client.get_model(latest_block)
-            update, accuracy, cmp_time = client.update_model(model, 10)
+            model_updated, accuracy, cmp_time = client.update_model(model, 10)
             # 保存梯度更新
             with open("clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
-                pickle.dump(update, f)
+                pickle.dump(model_updated, f)
             logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, epoch, accuracy))
 
-            client.send_update(update, cmp_time, base_block_height)
+            client.send_update(model_updated, cmp_time, base_block_height)
             
 
 if __name__ == '__main__':

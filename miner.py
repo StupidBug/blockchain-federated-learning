@@ -113,14 +113,14 @@ def new_transaction():
 
     # 参数合法性校验
     values = request.get_json()
-    required = ['client', 'baseindex', 'update', 'datasize', 'computing_time']
+    required = ['client', 'base_block_height', 'update', 'datasize', 'computing_time']
     if not all(k in values for k in required):
         return 'Missing values', 400
     if values['client'] in status['blockchain'].current_updates:
         return 'Model already stored', 400
 
     index = status['blockchain'].new_update(values['client'],
-                                            values['baseindex'],
+                                            values['base_block_height'],
                                             dict(pickle.loads(codecs.decode(values['update'].encode(), "base64"))),
                                             values['datasize'],
                                             values['computing_time'])
