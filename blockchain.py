@@ -135,7 +135,7 @@ class Blockchain(object):
         """
         info = {
             'index': block.block_height,
-            'proof': random.randint(0, 100000000),
+            'nonce': random.randint(0, 100000000),
             'previous_hash': block.previous_hash,
             'miner': block.miner_id,
             'accuracy': str(block.accuracy),
@@ -227,7 +227,8 @@ class Blockchain(object):
         工作量证明挖矿
 
         :param stop_event:
-        :return:
+        :return: block_info: 修正了
+        :return: stopped
         """
 
         block = self.make_block()
@@ -237,9 +238,9 @@ class Blockchain(object):
             if stop_event.is_set():
                 stopped = True
                 break
-            block_info['proof'] += 1
-            if block_info['proof'] % 1000 == 0:
-                print("mining", block_info['proof'])
+            block_info['nonce'] += 1
+            if block_info['nonce'] % 1000 == 0:
+                print("mining", block_info['nonce'])
         if stopped is False:
             self.store_block(block, block_info)
         if stopped:

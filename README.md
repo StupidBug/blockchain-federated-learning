@@ -9,7 +9,7 @@ Blockchain federated learning simulate by python
 区块的结构以字典形式进行保存，具体键值如下:
 
 + index : 区块在区块链中的高度
-+ proof : 
++ nonce : 挖出区块的nonce值
 + previous_hash : 上一个区块的哈希值
 + miner : 挖出该区块的矿工的身份标识
 + accuracy : 该区块链聚合得到的模型在测试集的准确度
