@@ -5,16 +5,11 @@
 
 import json
 import time
-from flask import Flask,jsonify,request
-from uuid import uuid4
 from urllib.parse import urlparse
 import requests
 import random
-from threading import Thread, Event
-import pickle
 import codecs
 from torch.utils.data import DataLoader
-import numpy as np
 from federatedlearner import *
 from datasets import *
 from utils import *
@@ -40,16 +35,17 @@ def compute_global_model(base_model, updates, learning_rate):
     worker.close()
     return accuracy, model
 
-def find_len(text,strk):
+
+def find_len(text, strk):
 
     ''' 
     Function to find the specified string in the text and return its starting position 
     as well as length/last_index
     '''
-    return text.find(strk),len(strk)
+    return text.find(strk), len(strk)
 
 class Update:
-    def __init__(self,client,baseindex,update,datasize,computing_time,timestamp=time.time()):
+    def __init__(self, client, baseindex, update, datasize, computing_time, timestamp=time.time()):
 
         ''' 
         Function to initialize the update string parameters
@@ -102,14 +98,14 @@ class Update:
 
 
 class Block:
-    def __init__(self, previous_hash, miner_id, index, basemodel, accuracy, updates, time_limit, update_limit,
+    def __init__(self, previous_hash, miner_id, block_height, basemodel, accuracy, updates, time_limit, update_limit,
                  timestamp=time.time()):
 
         ''' 
         Function to initialize the update string parameters per created block
         '''
         self.previous_hash = previous_hash
-        self.index = index
+        self.block_height = block_height
         self.miner_id = miner_id
         self.timestamp = timestamp
         self.basemodel = basemodel
@@ -117,7 +113,7 @@ class Block:
         self.updates = updates
         self.time_limit = time_limit
         self.update_limit = update_limit
-        self.content = self.make_content()
+        self.info = self.info()
 
     @staticmethod
     def from_string(metadata):
@@ -144,37 +140,15 @@ class Block:
             isep,lsep = find_len(x,"@|!|@")
             updates[x[:isep]] = Update.from_string(x[isep+lsep:])
         updates_size = int(metadata[i9+l9:].replace(",",'').replace(" ",""))
-        return Block(miner,index,basemodel,accuracy,updates,timestamp)
+        return Block(miner, index, basemodel, accuracy, updates, timestamp)
 
-    def __str__(self):
-
-        '''
-        Function to return the update string values in the required format per block
-        '''
-
-        return "'index': {index},\
-            'miner': {miner},\
-            'timestamp': {timestamp},\
-            'basemodel': {basemodel},\
-            'accuracy': {accuracy},\
-            'updates': {updates},\
-            'updates_size': {updates_size}".format(
-                index = self.index,
-                miner = self.miner_id,
-                basemodel = codecs.encode(pickle.dumps(sorted(self.basemodel.items())), "base64").decode(),
-                accuracy = self.accuracy,
-                timestamp = self.timestamp,
-                updates = str([str(x[0])+"@|!|@"+str(x[1]) for x in sorted(self.updates.items())]),
-                updates_size = str(len(self.updates))
-            )
-
-    def make_content(self):
+    def info(self) -> dict:
         """
         获取区块信息字典字典
         :return:
         """
-        hash_block = {
-            'index': self.index,
+        content = {
+            'index': self.block_height,
             'proof': random.randint(0, 100000000),
             'previous_hash': self.previous_hash,
             'miner': self.miner_id,
@@ -182,10 +156,17 @@ class Block:
             'timestamp': time.time(),
             'time_limit': self.time_limit,
             'update_limit': self.update_limit,
-            'model_hash': hash_sha256(codecs.encode(pickle.dumps(self.basemodel), "base64").decode())
+            'model_hash': hash_sha256(codecs.encode(pickle.dumps(self.basemodel), "base64").decode()),
+            'hash': hash_sha256(str(self))
         }
-        hash_block['hash'] = hash_sha256(str(hash_block))
-        return hash_block
+
+        hash_info = hash_sha256(content)
+
+        info = {
+            "content": content,
+            "hash": hash_info
+        }
+        return info
 
 
 class Blockchain(object):
@@ -195,7 +176,9 @@ class Blockchain(object):
 
     def __init__(self, miner_id, base_model=None, gen=False, update_limit=10, time_limit=1800):
         """
-        初始化区块链
+        初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
+        都是以 list(dict) 的类型进行存储
+
         :param miner_id: 矿工节点的地址 ip:port
         :param base_model: 初始模型
         :param gen: 是否为创世区块
@@ -203,9 +186,9 @@ class Blockchain(object):
         :param time_limit: 训练时间限制
         """
         super(Blockchain, self).__init__()
+        self.cursor_block: Block
         self.miner_id = miner_id
-        self.cursor_block = None
-        self.hashchain = []
+        self.hashchain: list[dict] = []
         self.current_updates = dict()
         self.update_limit = update_limit
         self.time_limit = time_limit
@@ -252,11 +235,11 @@ class Blockchain(object):
         elif len(self.current_updates) > 0:
             base = self.cursor_block.basemodel
             accuracy, basemodel = compute_global_model(base, self.current_updates, 1)
-        index = len(self.hashchain) + 1
+        block_height = len(self.hashchain) + 1
         block = Block(
             previous_hash=previous_hash,
             miner_id=self.miner_id,
-            index=index,
+            block_height=block_height,
             basemodel=basemodel,
             accuracy=accuracy,
             updates=self.current_updates,
@@ -272,9 +255,9 @@ class Blockchain(object):
         :return:
         """
         if self.cursor_block:
-            with open("blocks/federated_model" + str(self.cursor_block.index) + ".block", "wb") as f:
+            with open("blocks/federated_model" + str(self.cursor_block.block_height) + ".block", "wb") as f:
                 pickle.dump(self.cursor_block, f)
-        self.cursor_block = block
+        self.cursor_block: Block = block
         # 向区块链中添加区块
         self.hashchain.append(block.content)
         self.current_updates = dict()
