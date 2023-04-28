@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from federatedlearner import *
 from datasets import *
 from utils import *
+from typing import Tuple
 
 
 def compute_global_model(base_model, updates, learning_rate):
@@ -108,7 +109,8 @@ class Blockchain(object):
         # 构造创世区块，并添加入区块链
         if gen:
             genesis_block = self.make_block(base_model=base_model, previous_hash=1)
-            self.store_block(genesis_block)
+            genesis_block_info = self.generate_block_info(genesis_block)
+            self.store_block(genesis_block, genesis_block_info)
 
         self.node_addresses = set()
 
@@ -147,10 +149,12 @@ class Blockchain(object):
     def make_block(self, previous_hash=None, base_model=None) -> Block:
         """
         创建区块
+
         :param previous_hash: 上一区块的哈希值
         :param base_model: 当前区块基于的模型
-        :return: 区块实例， 区块详情字典
+        :return: 区块对象
         """
+
         accuracy = 0
         basemodel = None
         time_limit = self.time_limit
@@ -179,12 +183,13 @@ class Blockchain(object):
             )
         return block
 
-    def store_block(self, block: Block) -> None:
+    def store_block(self, block: Block, block_info: dict) -> None:
         """
         存储区块————完整的区块以文件的形式存储在本地，程序中只将每个
         区块的关键信息字典，添加进区块链列表中
 
         :param block: 区块对象
+        :param block_info: 区块信息
         :return:
         """
 
@@ -193,7 +198,6 @@ class Blockchain(object):
                 pickle.dump(self.cursor_block, f)
             self.cursor_block = block
 
-        block_info = self.generate_block_info(block)
         self.hashchain.append(block_info)
         # 清空当前存储的梯度更新
         self.current_updates = dict()
@@ -212,32 +216,38 @@ class Blockchain(object):
     def latest_block(self):
         """
         返回最新区块
+
         :return: 最新区块
         """
+
         return self.hashchain[-1]
 
-    def proof_of_work(self, stop_event):
+    def proof_of_work(self, stop_event) -> Tuple[dict, bool]:
         """
         工作量证明挖矿
+
         :param stop_event:
         :return:
         """
-        block, hblock = self.make_block()
+
+        block = self.make_block()
+        block_info = self.generate_block_info(block)
         stopped = False
-        while self.valid_proof(str(sorted(hblock.items()))) is False:
+        while self.valid_proof(str(sorted(block_info.items()))) is False:
             if stop_event.is_set():
                 stopped = True
                 break
-            hblock['proof'] += 1
-            if hblock['proof'] % 1000 == 0:
-                print("mining", hblock['proof'])
+            block_info['proof'] += 1
+            if block_info['proof'] % 1000 == 0:
+                print("mining", block_info['proof'])
         if stopped is False:
-            self.store_block(block)
+            self.store_block(block, block_info)
         if stopped:
             print("Stopped")
         else:
             print("Done")
-        return hblock, stopped
+
+        return block_info, stopped
 
     @staticmethod
     def valid_proof(block_data):
