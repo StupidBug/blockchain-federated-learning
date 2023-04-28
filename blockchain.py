@@ -10,11 +10,14 @@ from urllib.parse import urlparse
 import requests
 import random
 import codecs
+import log
 from torch.utils.data import DataLoader
 from federatedlearner import *
 from datasets import *
 from utils import *
 from typing import Tuple
+
+logger = log.setup_custom_logger("blockchain")
 
 
 def compute_global_model(base_model, updates, learning_rate):
@@ -65,9 +68,6 @@ class Block:
     def __init__(self, previous_hash, miner_id, block_height, basemodel, accuracy, updates, time_limit, update_limit,
                  timestamp=time.time()):
 
-        ''' 
-        Function to initialize the update string parameters per created block
-        '''
         self.previous_hash = previous_hash
         self.block_height = block_height
         self.miner_id = miner_id
@@ -142,6 +142,7 @@ class Blockchain(object):
             'timestamp': time.time(),
             'time_limit': block.time_limit,
             'update_limit': block.update_limit,
+            'model_hash': hash_sha256(codecs.encode(pickle.dumps(sorted(block.basemodel)), "base64").decode()),
             'hash': hash_sha256(str(block))
         }
         return info
@@ -227,38 +228,46 @@ class Blockchain(object):
         工作量证明挖矿
 
         :param stop_event:
-        :return: block_info: 修正了
-        :return: stopped
+        :return: block_info: 区块信息
+        :return: stopped:
         """
 
         block = self.make_block()
         block_info = self.generate_block_info(block)
         stopped = False
+
+        # 挖掘 nonce
         while self.valid_proof(str(sorted(block_info.items()))) is False:
+            # 当其他节点挖到了区块，则停止挖矿
             if stop_event.is_set():
                 stopped = True
                 break
+            # nonce 不断增加直至合法
             block_info['nonce'] += 1
             if block_info['nonce'] % 1000 == 0:
-                print("mining", block_info['nonce'])
+                logger.info("mining: {}".format(block_info['nonce']))
+
+        # 如果是自己挖到的区块，则存储该区块
         if stopped is False:
             self.store_block(block, block_info)
         if stopped:
-            print("Stopped")
+            logger.info("有其他节点挖掘出了区块")
         else:
-            print("Done")
+            logger.info("区块挖掘结束")
 
         return block_info, stopped
 
     @staticmethod
-    def valid_proof(block_data):
+    def valid_proof(block_info):
         """
         验证挖的 nonce 是否有效
-        :param block_data:
+
+        :param block_info:
         :return:
         """
-        guess_hash = hashlib.sha256(block_data.encode()).hexdigest()
+
         k = "00000"
+        guess_hash = hash_sha256(block_info.encode()).hexdigest()
         return guess_hash[:len(k)] == k
 
     def valid_chain(self, hchain):

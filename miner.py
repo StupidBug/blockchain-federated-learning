@@ -80,6 +80,12 @@ status = {
 
 
 def mine():
+    """
+    挖矿
+
+    :return:
+    """
+
     STOP_EVENT.clear()
     thread = PoWThread(STOP_EVENT, status["blockchain"], status["id"])
     status['s'] = "mining"
@@ -123,7 +129,7 @@ def new_transaction():
 
     index = status['blockchain'].new_update(values['client'],
                                             values['base_block_height'],
-                                            dict(pickle.loads(codecs.decode(values['update'].encode(), "base64"))),
+                                            dict(pickle.loads(codecs.decode(values['model_updated'].encode(), "base64"))),
                                             values['datasize'],
                                             values['computing_time'])
     # 向所有miner节点转发该交易
