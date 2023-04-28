@@ -133,19 +133,28 @@ class Blockchain(object):
         生成区块的关键信息，用于验证、检索等
         :return:
         """
-        info = {
-            'index': block.block_height,
-            'nonce': random.randint(0, 100000000),
+        block_body = {
+            'model_hash': hash_sha256(block.basemodel),
+            '': block.updates
+        }
+        block_head = {
+            'timestamp': time.time(),
             'previous_hash': block.previous_hash,
+            # TODO 实际中没有
+            'block_height': block.block_height,
+            # TODO 暂时用hash_sha256
+            'merkle_root': hash_sha256(block_body),
             'miner': block.miner_id,
             'accuracy': str(block.accuracy),
-            'timestamp': time.time(),
             'time_limit': block.time_limit,
             'update_limit': block.update_limit,
-            'model_hash': hash_sha256(codecs.encode(pickle.dumps(sorted(block.basemodel)), "base64").decode()),
-            'hash': hash_sha256(str(block))
+            "nonce": random.randint(0, 100000000),
         }
-        return info
+        block_info = {
+            "block_head": block_head,
+            "block_body": block_body,
+        }
+        return block_info
 
     def make_block(self, previous_hash=None, base_model=None) -> Block:
         """
@@ -237,7 +246,7 @@ class Blockchain(object):
         stopped = False
 
         # 挖掘 nonce
-        while self.valid_proof(str(sorted(block_info.items()))) is False:
+        while self.valid_nonce(block_info) is False:
             # 当其他节点挖到了区块，则停止挖矿
             if stop_event.is_set():
                 stopped = True
@@ -258,7 +267,7 @@ class Blockchain(object):
         return block_info, stopped
 
     @staticmethod
-    def valid_proof(block_info):
+    def valid_nonce(block_info):
         """
         验证挖的 nonce 是否有效
 
@@ -270,19 +279,19 @@ class Blockchain(object):
         guess_hash = hash_sha256(block_info.encode()).hexdigest()
         return guess_hash[:len(k)] == k
 
-    def valid_chain(self, hchain):
-        last_block = hchain[0]
-        curren_index = 1
-        while curren_index < len(hchain):
-            hblock = hchain[curren_index]
+    def valid_chain(self, block_chain: list[dict]):
+        last_block = block_chain[0]
+        current_index = 1
+        while current_index < len(block_chain):
+            hblock = block_chain[current_index]
             if hblock['previous_hash'] != hash_sha256(str(sorted(last_block.items()))):
-                print("prev_hash diverso", curren_index)
+                logger.warn("prev_hash diverse", current_index)
                 return False
             if not self.valid_proof(str(sorted(hblock.items()))):
-                print("invalid proof", curren_index)
+                print("invalid proof", current_index)
                 return False
             last_block = hblock
-            curren_index += 1
+            current_index += 1
         return True
 
     def resolve_conflicts(self, stop_event):
