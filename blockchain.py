@@ -65,21 +65,44 @@ class Update:
 
 
 class Block:
-    def __init__(self, previous_hash, miner_id, block_height, basemodel, accuracy, updates, time_limit, update_limit,
-                 timestamp=time.time()):
+    def __init__(self, previous_hash, miner_id, block_height, base_model: nn.Module, accuracy, updates: dict[Update],
+                 time_limit, update_limit):
 
-        self.previous_hash = previous_hash
-        self.block_height = block_height
-        self.miner_id = miner_id
-        self.timestamp = timestamp
-        self.basemodel = basemodel
-        self.accuracy = accuracy
-        self.updates = updates
-        self.time_limit = time_limit
-        self.update_limit = update_limit
+        # 区块体
+        self.block_body = self.BlockBody(
+            base_model=base_model,
+            updates=updates)
 
-    def __str__(self):
-        return pickle.dumps(self)
+        # 区块头
+        self.block_head = self.BlockHead(
+            timestamp=time.time(),
+            previous_hash=previous_hash,
+            block_height=block_height,
+            merkle_root=hash_sha256(self.block_body),
+            miner=miner_id,
+            accuracy=accuracy,
+            time_limit=time_limit,
+            update_limit=update_limit,
+            nonce=random.randint(0, 100000000)
+        )
+
+    class BlockHead:
+        def __init__(self, timestamp, previous_hash, block_height, merkle_root, miner, accuracy, time_limit,
+                     update_limit, nonce):
+            self.timestamp = timestamp
+            self.previous_hash = previous_hash
+            self.block_height = block_height
+            self.merkle_root = merkle_root
+            self.miner = miner
+            self.accuracy = accuracy
+            self.time_limit = time_limit
+            self.update_limit = update_limit
+            self.nonce = nonce
+
+    class BlockBody:
+        def __init__(self, base_model, updates):
+            self.base_model = base_model
+            self.updates = updates
 
 
 class Blockchain(object):
@@ -101,7 +124,7 @@ class Blockchain(object):
         super(Blockchain, self).__init__()
         self.cursor_block = None
         self.miner_id = miner_id
-        self.hashchain: list[dict] = []
+        self.hashchain: list[Block.BlockHead] = []
         self.current_updates = dict()
         self.update_limit = update_limit
         self.time_limit = time_limit
@@ -109,8 +132,7 @@ class Blockchain(object):
         # 构造创世区块，并添加入区块链
         if gen:
             genesis_block = self.make_block(base_model=base_model, previous_hash=1)
-            genesis_block_info = self.generate_block_info(genesis_block)
-            self.store_block(genesis_block, genesis_block_info)
+            self.store_block(genesis_block)
 
         self.node_addresses = set()
 
@@ -127,35 +149,6 @@ class Blockchain(object):
         self.node_addresses.add(parsed_url.netloc)
         print("Registered node", address)
 
-    @staticmethod
-    def generate_block_info(block: Block) -> dict:
-        """
-        生成区块的关键信息，用于验证、检索等
-        :return:
-        """
-        block_body = {
-            'model_hash': hash_sha256(block.basemodel),
-            '': block.updates
-        }
-        block_head = {
-            'timestamp': time.time(),
-            'previous_hash': block.previous_hash,
-            # TODO 实际中没有
-            'block_height': block.block_height,
-            # TODO 暂时用hash_sha256
-            'merkle_root': hash_sha256(block_body),
-            'miner': block.miner_id,
-            'accuracy': str(block.accuracy),
-            'time_limit': block.time_limit,
-            'update_limit': block.update_limit,
-            "nonce": random.randint(0, 100000000),
-        }
-        block_info = {
-            "block_head": block_head,
-            "block_body": block_body,
-        }
-        return block_info
-
     def make_block(self, previous_hash=None, base_model=None) -> Block:
         """
         创建区块
@@ -166,17 +159,17 @@ class Blockchain(object):
         """
 
         accuracy = 0
-        basemodel = None
+        model = None
         time_limit = self.time_limit
         update_limit = self.update_limit
         if len(self.hashchain) > 0:
-            update_limit = self.latest_block['update_limit']
-            time_limit = self.latest_block['time_limit']
+            update_limit = self.latest_block.update_limit
+            time_limit = self.latest_block.time_limit
         if previous_hash is None:
-            previous_hash = hash_sha256(str(sorted(self.latest_block.items())))
+            previous_hash = hash_sha256(str(self.latest_block))
         if base_model is not None:
             accuracy = base_model['accuracy']
-            basemodel = base_model['model']
+            model = base_model['model']
         elif len(self.current_updates) > 0:
             base = self.cursor_block.basemodel
             accuracy, basemodel = compute_global_model(base, self.current_updates, 1)
@@ -185,7 +178,7 @@ class Blockchain(object):
             previous_hash=previous_hash,
             miner_id=self.miner_id,
             block_height=block_height,
-            basemodel=basemodel,
+            base_model=model,
             accuracy=accuracy,
             updates=self.current_updates,
             time_limit=time_limit,
@@ -193,13 +186,12 @@ class Blockchain(object):
             )
         return block
 
-    def store_block(self, block: Block, block_info: dict) -> None:
+    def store_block(self, block: Block) -> None:
         """
-        存储区块————完整的区块以文件的形式存储在本地，程序中只将每个
-        区块的关键信息字典，添加进区块链列表中
+        存储区块————完整的区块以文件的形式存储在本地，程序中
+        只保存最新区块的完整区块文件，和已共识区块的区块头
 
-        :param block: 区块对象
-        :param block_info: 区块信息
+        :param block: 区块结构体
         :return:
         """
 
@@ -208,7 +200,7 @@ class Blockchain(object):
                 pickle.dump(self.cursor_block, f)
             self.cursor_block = block
 
-        self.hashchain.append(block_info)
+        self.hashchain.append(block.block_head)
         # 清空当前存储的梯度更新
         self.current_updates = dict()
 
@@ -220,7 +212,7 @@ class Blockchain(object):
             datasize=datasize,
             computing_time=computing_time
             )
-        return self.latest_block['index'] + 1
+        return self.latest_block.block_height + 1
 
     @property
     def latest_block(self):
@@ -232,7 +224,7 @@ class Blockchain(object):
 
         return self.hashchain[-1]
 
-    def proof_of_work(self, stop_event) -> Tuple[dict, bool]:
+    def proof_of_work(self, stop_event) -> Tuple[Block, bool]:
         """
         工作量证明挖矿
 
@@ -242,56 +234,65 @@ class Blockchain(object):
         """
 
         block = self.make_block()
-        block_info = self.generate_block_info(block)
         stopped = False
+        block_head = block.block_head
 
         # 挖掘 nonce
-        while self.valid_nonce(block_info) is False:
+        while self.valid_nonce(block_head) is False:
             # 当其他节点挖到了区块，则停止挖矿
             if stop_event.is_set():
                 stopped = True
                 break
             # nonce 不断增加直至合法
-            block_info['nonce'] += 1
-            if block_info['nonce'] % 1000 == 0:
-                logger.info("mining: {}".format(block_info['nonce']))
+            block_head.nonce += 1
+            if block_head.nonce % 1000 == 0:
+                logger.info("mining: {}".format(block_head.nonce))
 
         # 如果是自己挖到的区块，则存储该区块
         if stopped is False:
-            self.store_block(block, block_info)
+            self.store_block(block)
         if stopped:
             logger.info("有其他节点挖掘出了区块")
         else:
             logger.info("区块挖掘结束")
 
-        return block_info, stopped
+        return block, stopped
 
     @staticmethod
-    def valid_nonce(block_info):
+    def valid_nonce(block_head: Block.BlockHead):
         """
-        验证挖的 nonce 是否有效
+        验证区块头中的 nonce 是否有效
 
-        :param block_info:
+        :param block_head: 区块头
         :return:
         """
 
         k = "00000"
-        guess_hash = hash_sha256(block_info.encode()).hexdigest()
+        guess_hash = hash_sha256(str(block_head).encode()).hexdigest()
         return guess_hash[:len(k)] == k
 
-    def valid_chain(self, block_chain: list[dict]):
-        last_block = block_chain[0]
-        current_index = 1
-        while current_index < len(block_chain):
-            hblock = block_chain[current_index]
-            if hblock['previous_hash'] != hash_sha256(str(sorted(last_block.items()))):
-                logger.warn("prev_hash diverse", current_index)
+    def valid_chain(self, block_chain: list[Block.BlockHead]):
+        """
+        验证区块链是否合法
+
+        :param block_chain:
+        :return:
+        """
+
+        last_block_head = block_chain[0]
+        current_block_height = 1
+        while current_block_height < len(block_chain):
+            current_block_head = block_chain[current_block_height]
+            # 验证 previous_hash
+            if current_block_head.previous_hash != hash_sha256(str(last_block_head)):
+                logger.warn("prev_hash diverse", current_block_head)
                 return False
-            if not self.valid_proof(str(sorted(hblock.items()))):
-                print("invalid proof", current_index)
+            #
+            if not self.valid_nonce(current_block_head):
+                print("invalid proof", current_block_head)
                 return False
-            last_block = hblock
-            current_index += 1
+            last_block_head = current_block_head
+            current_block_head += 1
         return True
 
     def resolve_conflicts(self, stop_event):
