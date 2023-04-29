@@ -156,7 +156,7 @@ def get_status():
 
     response = {
         'status': status['s'],
-        'last_model_index': status['blockchain'].latest_block['block_height']
+        'last_model_index': status['blockchain'].latest_block.block_height
         }
     return jsonify(response), 200
 
@@ -168,9 +168,12 @@ def full_chain():
 
     :return: 区块信息列表（区块链）
     """
+    hashchain = []
+    for block_head in status['blockchain'].hashchain:
+        hashchain.append(block_head.__dict__)
 
     response = {
-        'chain': status['blockchain'].hashchain,
+        'chain': hashchain,
         'length': len(status['blockchain'].hashchain)
     }
     return jsonify(response), 200

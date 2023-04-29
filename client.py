@@ -40,6 +40,7 @@ class Client:
 
         :return: 完整的区块信息列表
         """
+
         response = requests.get('http://{node}/chain'.format(node=self.miner))
         if response.status_code == 200:
             return response.json()['chain']
@@ -145,12 +146,12 @@ class Client:
                     wait = False
 
             # 获取最新区块信息
-            latest_block = client.get_latest_block()
-            base_block_height = latest_block['block_height']
-            logger.info("区块链中最新区块全局模型的准确率: {}".format(latest_block['accuracy']))
+            latest_block_head = client.get_latest_block()
+            base_block_height = latest_block_head
+            logger.info("区块链中最新区块全局模型的准确率: {}".format(latest_block_head['accuracy']))
 
             # 开始进行本地训练
-            model = client.get_model(latest_block)
+            model = client.get_model(latest_block_head)
             model_updated, accuracy, cmp_time = client.update_model(model, 10)
             # 保存梯度更新
             with open("clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
