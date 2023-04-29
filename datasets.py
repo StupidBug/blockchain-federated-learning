@@ -9,6 +9,7 @@ import log
 logger = log.setup_custom_logger("dataset")
 dataset_suffix = ".dataset"
 
+path_separator = '\\'
 
 class GlobalDataset(data.Dataset):
     """
@@ -81,11 +82,11 @@ class NodeDataset(data.Dataset):
 
     def load_dataset_from_local(self):
         try:
-            dataset = torch.load(self.dataset_dir + self.name + dataset_suffix)
+            dataset = torch.load(self.dataset_dir + path_separator + self.name + dataset_suffix)
         except Exception:
             logger.error("节点:{} 无法从本地读取节点数据集", self.name)
             raise FileNotFoundError
-        logger.info("节点:{} 数据集已加载成功", self.name)
+        logger.info("节点:{} 数据集已加载成功".format(self.name))
         return dataset
 
     def __getitem__(self, index) -> T_co:

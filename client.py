@@ -15,13 +15,13 @@ from typing import Union, Tuple
 
 
 class Client:
-    def __init__(self, miner, dataset_dir, client_name):
+    def __init__(self, miner, dataset_dir, name):
         """
         :param miner: 矿工地址
         :param dataset_dir: 数据集存放文件夹
         """
         self.id = str(uuid4()).replace('-', '')
-        self.name = client_name
+        self.name = name
         self.dataset_dir = dataset_dir
         self.miner = miner
         self.dataset = self.load_dataset()
@@ -163,12 +163,15 @@ class Client:
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
-    parser.add_argument('-d', '--dataset_dir', default='data/mnist.d', help='dataset数据存放文件夹')
+    parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-e', '--epochs', default=10, type=int, help='client本地训练的轮次')
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
     args = parser.parse_args()
 
-    client = Client(args.miner, args.dataset_dir, args.name)
-    logger.info("Client节点:{} 已完成初始化".format(client.id))
+    client = Client(miner=args.miner,
+                    dataset_dir=args.dataset_dir,
+                    name=args.name)
+
+    logger.info("Client节点:{} 已完成初始化".format(client.name))
 
     client.work(args.epochs)

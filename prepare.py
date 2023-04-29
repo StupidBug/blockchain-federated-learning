@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 
 logger = log.setup_custom_logger("data")
 path_separator = '\\'
+dataset_suffix = '.dataset'
 
 
 def save_data(dataset, filename):
@@ -69,7 +70,7 @@ def save_dataset(dateset, dataset_name):
     :param dateset: 数据集
     :param dataset_name: 数据集文件名
     """
-    torch.save(dateset, dataset_dir + path_separator + dataset_name)
+    torch.save(dateset, dataset_dir + path_separator + dataset_name + dataset_suffix)
 
 
 def prepare_data():
@@ -87,7 +88,7 @@ def prepare_data():
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('-d', '--dataset_dir', default='D:\\dataset', help='dataset数据存放文件夹')
+    parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-n', '--node_num', default=5, type=int, help='节点数量')
     args = parser.parse_args()
     # 数据本地存放路径

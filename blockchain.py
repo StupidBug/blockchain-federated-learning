@@ -109,7 +109,7 @@ class Blockchain(object):
     区块链
     """
 
-    def __init__(self, miner_id, genesis_model: Model = None, gen=False, update_limit=10, time_limit=1800):
+    def __init__(self, miner_id, block_dir, genesis_model: Model = None, gen=False, update_limit=10, time_limit=1800,):
         """
         初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
         都是以 list(dict) 的类型进行存储
@@ -119,6 +119,7 @@ class Blockchain(object):
         :param gen: 是否为创世区块
         :param update_limit: 更新次数限制
         :param time_limit: 训练时间限制
+        :param block_dir: 区块文件存储位置
         """
         super(Blockchain, self).__init__()
         self.cursor_block = None
@@ -127,6 +128,7 @@ class Blockchain(object):
         self.current_updates: list[Update] = list()
         self.update_limit = update_limit
         self.time_limit = time_limit
+        self.block_dir = block_dir
 
         # 构造创世区块，并添加入区块链
         if gen:
@@ -202,7 +204,7 @@ class Blockchain(object):
         """
 
         if self.cursor_block is not None:
-            with open("blocks/federated_model" + str(self.cursor_block.block_height) + ".block", "wb") as f:
+            with open(self.block_dir + "/federated_model" + str(self.cursor_block.block_height) + ".block", "wb") as f:
                 pickle.dump(self.cursor_block, f)
             self.cursor_block = block
 

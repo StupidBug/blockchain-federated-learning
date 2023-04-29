@@ -294,7 +294,8 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--host', default='127.0.0.1', help='矿工的IP地址')
     parser.add_argument('-g', '--genesis', default=1, type=int, help='初始化创世区块')
     parser.add_argument('-l', '--update_limit', default=10, type=int, help='单个区块中最多包含多少个更新')
-    parser.add_argument('-d', '--dataset_dir', default="D:\\dataset", help='dataset数据存放文件夹')
+    parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
+    parser.add_argument('-b', '--block_dir', default=".\\block", help="区块文件存储位置")
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
     args = parser.parse_args()
     # 矿工地址
@@ -309,11 +310,16 @@ if __name__ == '__main__':
         logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(address))
         model = make_base(args.dataset_dir)
         logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
-        status['blockchain'] = Blockchain(address, model, True, args.update_limit)
+        status['blockchain'] = Blockchain(miner_id=address,
+                                          block_dir=args.block_dir,
+                                          genesis_model=model,
+                                          gen=True,
+                                          update_limit=args.update_limit)
 
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:
-        status['blockchain'] = Blockchain(address)
+        status['blockchain'] = Blockchain(miner_id=address,
+                                          block_dir=args.block_dir)
         status['blockchain'].register_node(args.maddress)
         requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
