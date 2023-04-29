@@ -167,7 +167,7 @@ class Blockchain(object):
 
         # 当为非创世区块时，使用最新区块的哈希值作为 previous_hash
         if previous_hash is None:
-            previous_hash = hash_sha256(str(self.latest_block))
+            previous_hash = hash_sha256(self.latest_block)
 
         # 当该区块为创世区块，则使用给定模型
         if genesis_model is not None:
@@ -279,7 +279,7 @@ class Blockchain(object):
         """
 
         k = "00000"
-        guess_hash = hash_sha256(str(block_head).encode()).hexdigest()
+        guess_hash = hash_sha256(block_head)
         return guess_hash[:len(k)] == k
 
     def valid_chain(self, block_chain: list[Block.BlockHead]):
@@ -295,7 +295,7 @@ class Blockchain(object):
         while current_block_height < len(block_chain):
             current_block_head = block_chain[current_block_height]
             # 验证 previous_hash
-            if current_block_head.previous_hash != hash_sha256(str(last_block_head)):
+            if current_block_head.previous_hash != hash_sha256(last_block_head):
                 logger.warn("prev_hash diverse", current_block_head)
                 return False
             #

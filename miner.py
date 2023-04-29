@@ -239,7 +239,7 @@ def get_block():
 
     # 验证区块哈希值是否满足
     valid: bool
-    if hash_sha256(str(block)) == block_info['hash']:
+    if hash_sha256(block) == block_info['hash']:
         valid = True
     else:
         valid = False

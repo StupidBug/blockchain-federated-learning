@@ -1,3 +1,5 @@
+import pickle
+
 import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix
@@ -58,10 +60,10 @@ def compute_accuracy(model, dataloader, get_confusion_matrix=False, device="cuda
     return correct / float(total)
 
 
-def hash_sha256(text):
+def hash_sha256(text: object):
     """
     sha256 哈希函数
     :param text: 需要哈希的内容
     :return: 哈希后的结果
     """
-    return hashlib.sha256(text.encode()).hexdigest()
+    return hashlib.sha256(str(pickle.dumps(text)).encode()).hexdigest()
