@@ -2,6 +2,7 @@
  - Blockchain for Federated Learning -
            Mining script
 """
+import json
 import pickle
 
 from blockchain import *
@@ -220,35 +221,36 @@ def get_block():
     """
 
     request_json = request.get_json()
-    block_info = request_json['block_info']
-    block: bytes = bytes()
+    block_head_dict = request_json['block_head']
+    block: Union[Block, None] = None
 
     # 从cursor_block中获取完整区块
-    if status['blockchain'].cursor_block.block_height == block_info["block_height"]:
-        block = pickle.dumps(status['blockchain'].cursor_block)
+    if status['blockchain'].cursor_block is not None \
+            and status['blockchain'].cursor_block.block_head.block_height == block_head_dict["block_height"]:
+        block = status['blockchain'].cursor_block
 
     # 从本地文件中获取完整区块
-    elif os.path.isfile("./blocks/federated_model" + block_info["block_height"] + ".block"):
-        with open("./blocks/federated_model" + block_info["block_height"] + ".block", "rb") as f:
-            block = f.read()
+    elif status["blockchain"].get_block(block_head_dict["block_height"]) is not None:
+        block = status["blockchain"].get_block(block_head_dict["block_height"])
 
     # 从其他节点获取完整区块
     else:
         rsp = requests.post('http://{node}/block'.format(node=['miner']), json=request_json)
         if rsp.status_code == 200:
-            block = rsp.json()['block']
-            with open("./blocks/federated_model" + block_info["block_height"] + ".block", "wb") as f:
-                f.write(block)
+            block = pickle.loads(codecs.decode(rsp.json()['block'].encode(), "base64"))
+            with open("./blocks/federated_model" + block_head_dict["block_height"] + ".block", "wb") as f:
+                f.write(pickle.dumps(block))
 
     # 验证区块哈希值是否满足
     valid: bool
-    if hash_sha256(block) == block_info['hash']:
+    if hash_sha256(block.block_body) == block_head_dict['hash']:
         valid = True
     else:
         valid = False
 
     response = {
-        'block': block,
+        # 先将 二进制 bytes 以 base64 的编码方式编码为 bytes ，再解码为 utf-8
+        'block': codecs.encode(pickle.dumps(block), "base64").decode(),
         'valid': valid
     }
     return jsonify(response), 200

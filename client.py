@@ -53,11 +53,12 @@ class Client:
         :return: 区块对象
         """
 
-        block = None
+        block: Union[None, Block] = None
         response = requests.post('http://{node}/block'.format(node=self.miner),
-                                 json={'block_info': block_info})
+                                 json={'block_head': block_info})
         if response.json()['valid']:
-            block = pickle.loads(response.json()['block'])
+            # 将 urf-8 编码为 bytes，再以 base64 的解码方式解码为二进制 bytes
+            block = pickle.loads(codecs.decode(response.json()['block'].encode(), "base64"))
         return block
 
     def get_model(self, block_info: dict) -> nn.Module:

@@ -15,8 +15,9 @@ from torch.utils.data import DataLoader
 from federatedlearner import *
 from datasets import *
 from utils import *
-from typing import Tuple
+from typing import *
 from model import Model
+import os
 
 logger = log.setup_custom_logger("blockchain")
 
@@ -77,7 +78,7 @@ class Block:
             timestamp=time.time(),
             previous_hash=previous_hash,
             block_height=block_height,
-            merkle_root=hash_sha256(self.block_body),
+            block_body_hash=hash_sha256(self.block_body),
             miner=miner_id,
             accuracy=accuracy,
             time_limit=time_limit,
@@ -86,12 +87,12 @@ class Block:
         )
 
     class BlockHead:
-        def __init__(self, timestamp, previous_hash, block_height, merkle_root, miner, accuracy, time_limit,
+        def __init__(self, timestamp, previous_hash, block_height, block_body_hash, miner, accuracy, time_limit,
                      update_limit, nonce):
             self.timestamp = timestamp
             self.previous_hash = previous_hash
             self.block_height = block_height
-            self.merkle_root = merkle_root
+            self.hash = block_body_hash
             self.miner = miner
             self.accuracy = accuracy
             self.time_limit = time_limit
@@ -122,7 +123,7 @@ class Blockchain(object):
         :param block_dir: 区块文件存储位置
         """
         super(Blockchain, self).__init__()
-        self.cursor_block = None
+        self.cursor_block: Union[Block, None] = None
         self.miner_id = miner_id
         self.hashchain: list[Block.BlockHead] = []
         self.current_updates: list[Update] = list()
@@ -178,7 +179,8 @@ class Blockchain(object):
 
         # 存在梯度更新则聚合模型
         elif len(self.current_updates) > 0:
-            base = self.cursor_block.basemodel
+            # TODO
+            base = self.cursor_block.block_body.model_updated
             accuracy, model_updated = compute_global_model(base, self.current_updates, 1)
 
         block_height = len(self.hashchain) + 1
@@ -204,13 +206,21 @@ class Blockchain(object):
         """
 
         if self.cursor_block is not None:
-            with open(self.block_dir + "/federated_model" + str(self.cursor_block.block_height) + ".block", "wb") as f:
+            with open(self.block_dir + "/federated_model" + str(self.cursor_block.block_head.block_height) + ".block", "wb") as f:
                 pickle.dump(self.cursor_block, f)
-            self.cursor_block = block
+        self.cursor_block = block
 
         self.hashchain.append(block.block_head)
         # 清空当前存储的梯度更新
         self.current_updates = dict()
+
+    @staticmethod
+    def get_block(block_height) -> Union[Block, None]:
+        if os.path.isfile("./blocks/federated_model" + str(block_height) + ".block"):
+            with open("./blocks/federated_model" + str(block_height) + ".block", "rb") as f:
+                block = pickle.loads(f.read())
+                return block
+        return None
 
     def new_update(self, client, base_block_height, update, datasize, computing_time):
         """
