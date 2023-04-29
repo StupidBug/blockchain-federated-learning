@@ -41,23 +41,21 @@ def compute_global_model(base_model, updates, learning_rate):
     return accuracy, model
 
 
-def find_len(text, strk):
-
-    ''' 
-    Function to find the specified string in the text and return its starting position 
-    as well as length/last_index
-    '''
-    return text.find(strk), len(strk)
-
-
 class Update:
-    def __init__(self, client, baseindex, update, datasize, computing_time, timestamp=time.time()):
+    def __init__(self, client, base_block_height, update: nn.Module, datasize, computing_time, timestamp=time.time()):
+        """
+        初始化梯度更新
 
-        ''' 
-        Function to initialize the update string parameters
-        '''
+        :param client: 生成该梯度更新的客户端
+        :param base_block_height: 该梯度更新基于哪个区块高度的区块中的模型
+        :param update: 区块更新
+        :param datasize: 数据大小
+        :param computing_time: 计算时间
+        :param timestamp: 时间戳
+        """
+
         self.timestamp = timestamp
-        self.baseindex = baseindex
+        self.base_block_height = base_block_height
         self.update = update
         self.client = client
         self.datasize = datasize
@@ -65,7 +63,7 @@ class Update:
 
 
 class Block:
-    def __init__(self, previous_hash, miner_id, block_height, base_model: nn.Module, accuracy, updates: dict[Update],
+    def __init__(self, previous_hash, miner_id, block_height, base_model: nn.Module, accuracy, updates: list[Update],
                  time_limit, update_limit):
 
         # 区块体
@@ -125,7 +123,7 @@ class Blockchain(object):
         self.cursor_block = None
         self.miner_id = miner_id
         self.hashchain: list[Block.BlockHead] = []
-        self.current_updates = dict()
+        self.current_updates: list[Update] = list()
         self.update_limit = update_limit
         self.time_limit = time_limit
 
@@ -204,14 +202,19 @@ class Blockchain(object):
         # 清空当前存储的梯度更新
         self.current_updates = dict()
 
-    def new_update(self, client, baseindex, update, datasize, computing_time):
-        self.current_updates[client] = Update(
+    def new_update(self, client, base_block_height, update, datasize, computing_time):
+        """
+        将接收的梯度更新暂存在current_updates中，等打包区块时，
+        再将梯度更新放进去
+        """
+
+        self.current_updates.append(Update(
             client=client,
-            baseindex=baseindex,
+            base_block_height=base_block_height,
             update=update,
             datasize=datasize,
             computing_time=computing_time
-            )
+            ))
         return self.latest_block.block_height + 1
 
     @property
@@ -298,9 +301,11 @@ class Blockchain(object):
     def resolve_conflicts(self, stop_event):
         """
         冲突解决————当其他节点中出现更长且有效的区块链时，将自身维护的区块链替换成最长有效区块链
+
         :param stop_event:
         :return:
         """
+
         neighbours = self.node_addresses
         new_chain = None
         bnode = None
