@@ -16,6 +16,7 @@ from federatedlearner import *
 from datasets import *
 from utils import *
 from typing import Tuple
+from model import Model
 
 logger = log.setup_custom_logger("blockchain")
 
@@ -63,12 +64,12 @@ class Update:
 
 
 class Block:
-    def __init__(self, previous_hash, miner_id, block_height, base_model: nn.Module, accuracy, updates: list[Update],
+    def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, accuracy, updates: list[Update],
                  time_limit, update_limit):
 
         # 区块体
         self.block_body = self.BlockBody(
-            base_model=base_model,
+            model_updated=model_updated,
             updates=updates)
 
         # 区块头
@@ -98,8 +99,8 @@ class Block:
             self.nonce = nonce
 
     class BlockBody:
-        def __init__(self, base_model, updates):
-            self.base_model = base_model
+        def __init__(self, model_updated, updates):
+            self.model_updated = model_updated
             self.updates = updates
 
 
@@ -108,13 +109,13 @@ class Blockchain(object):
     区块链
     """
 
-    def __init__(self, miner_id, base_model=None, gen=False, update_limit=10, time_limit=1800):
+    def __init__(self, miner_id, genesis_model: Model = None, gen=False, update_limit=10, time_limit=1800):
         """
         初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
         都是以 list(dict) 的类型进行存储
 
         :param miner_id: 矿工节点的地址 ip:port
-        :param base_model: 初始模型
+        :param genesis_model: 初始模型
         :param gen: 是否为创世区块
         :param update_limit: 更新次数限制
         :param time_limit: 训练时间限制
@@ -129,7 +130,7 @@ class Blockchain(object):
 
         # 构造创世区块，并添加入区块链
         if gen:
-            genesis_block = self.make_block(base_model=base_model, previous_hash=1)
+            genesis_block = self.make_block(genesis_model=genesis_model, previous_hash=1)
             self.store_block(genesis_block)
 
         self.node_addresses = set()
@@ -147,36 +148,43 @@ class Blockchain(object):
         self.node_addresses.add(parsed_url.netloc)
         print("Registered node", address)
 
-    def make_block(self, previous_hash=None, base_model=None) -> Block:
+    def make_block(self, previous_hash=None, genesis_model: Model = None) -> Block:
         """
         创建区块
 
         :param previous_hash: 上一区块的哈希值
-        :param base_model: 当前区块基于的模型
+        :param genesis_model: 创世区块的模型：如果不为空，则使用该模型
         :return: 区块对象
         """
 
         accuracy = 0
-        model = None
+        model_updated = None
         time_limit = self.time_limit
         update_limit = self.update_limit
         if len(self.hashchain) > 0:
             update_limit = self.latest_block.update_limit
             time_limit = self.latest_block.time_limit
+
+        # 当为非创世区块时，使用最新区块的哈希值作为 previous_hash
         if previous_hash is None:
             previous_hash = hash_sha256(str(self.latest_block))
-        if base_model is not None:
-            accuracy = base_model['accuracy']
-            model = base_model['model']
+
+        # 当该区块为创世区块，则使用给定模型
+        if genesis_model is not None:
+            accuracy = genesis_model.accuracy
+            model_updated = genesis_model.model
+
+        # 存在梯度更新则聚合模型
         elif len(self.current_updates) > 0:
             base = self.cursor_block.basemodel
-            accuracy, basemodel = compute_global_model(base, self.current_updates, 1)
+            accuracy, model_updated = compute_global_model(base, self.current_updates, 1)
+
         block_height = len(self.hashchain) + 1
         block = Block(
             previous_hash=previous_hash,
             miner_id=self.miner_id,
             block_height=block_height,
-            base_model=model,
+            model_updated=model_updated,
             accuracy=accuracy,
             updates=self.current_updates,
             time_limit=time_limit,

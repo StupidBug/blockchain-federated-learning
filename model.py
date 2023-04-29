@@ -30,3 +30,9 @@ class SimpleCNN(nn.Module):
         # 输出层，不需要激活函数
         x = self.fc3(x)
         return x
+
+
+class Model:
+    def __init__(self, model, accuracy):
+        self.model = model
+        self.accuracy = accuracy

@@ -11,7 +11,7 @@ from datasets import GlobalDataset, NodeDataset
 from flask import *
 from uuid import uuid4
 import torchvision.transforms as transforms
-from model import *
+from model import SimpleCNN, Model
 import codecs
 import os
 import glob
@@ -36,11 +36,12 @@ def make_base(dataset_dir):
                       epochs=None, device="cuda")
     worker.build_base()
 
-    model_info = dict()
-    model_info['model'] = worker.get_model()
-    model_info['accuracy'] = worker.evaluate()
+    base_model = Model(
+        model=worker.get_model(),
+        accuracy=worker.evaluate()
+    )
     worker.close()
-    return model_info
+    return base_model
 
 
 class PoWThread(Thread):
@@ -307,7 +308,7 @@ if __name__ == '__main__':
     if args.genesis == 1:
         logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(address))
         model = make_base(args.dataset_dir)
-        logger.info("区块链中初始全局模型测试集准确率为:{}".format(model['accuracy']))
+        logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
         status['blockchain'] = Blockchain(address, model, True, args.update_limit)
 
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
