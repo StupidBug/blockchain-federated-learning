@@ -20,27 +20,8 @@ from model import Model
 import os
 
 logger = log.setup_custom_logger("blockchain")
-
-
-def compute_global_model(base_model, updates, learning_rate):
-
-    """
-    聚合全局模型
-    :param base_model:
-    :param updates:
-    :param learning_rate:
-    :return:
-    """
-
-    dataset = GlobalDataset("d:/dataset", train=False)
-    dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
-    worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
-                      epochs=None, device="cuda", learning_rate=learning_rate)
-    worker.build(base_model, updates)
-    model = worker.get_model()
-    accuracy = worker.evaluate()
-    worker.close()
-    return accuracy, model
+block_suffix = ".block"
+path_separator = '\\'
 
 
 class Update:
@@ -99,6 +80,15 @@ class Block:
             self.update_limit = update_limit
             self.nonce = nonce
 
+        def get_block_hash(self):
+            """
+            获取当前区块的区块哈希
+
+            :return: 区块头的哈希值
+            """
+
+            return hash_sha256(self)
+
     class BlockBody:
         def __init__(self, model_updated, updates):
             self.model_updated = model_updated
@@ -110,7 +100,7 @@ class Blockchain(object):
     区块链
     """
 
-    def __init__(self, miner_id, block_dir, genesis_model: Model = None, gen=False, update_limit=10, time_limit=1800,):
+    def __init__(self, miner_id, block_dir, update_limit=10, time_limit=1800,):
         """
         初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
         都是以 list(dict) 的类型进行存储
@@ -130,12 +120,6 @@ class Blockchain(object):
         self.update_limit = update_limit
         self.time_limit = time_limit
         self.block_dir = block_dir
-
-        # 构造创世区块，并添加入区块链
-        if gen:
-            genesis_block = self.make_block(genesis_model=genesis_model, previous_hash=1)
-            self.store_block(genesis_block)
-
         self.node_addresses = set()
 
     def register_node(self, address):
@@ -205,8 +189,11 @@ class Blockchain(object):
         :return:
         """
 
+        # cursor_block 存储区块链中的最新完整区块，只有挖出了下一个区块时，才会将区块存储
         if self.cursor_block is not None:
-            with open(self.block_dir + "/federated_model" + str(self.cursor_block.block_head.block_height) + ".block", "wb") as f:
+            block_path = self.block_dir + path_separator + self.miner_id + path_separator + "/federated_model" + \
+                         str(self.cursor_block.block_head.block_height) + block_suffix
+            with open(block_path, "wb") as f:
                 pickle.dump(self.cursor_block, f)
         self.cursor_block = block
 
@@ -214,10 +201,18 @@ class Blockchain(object):
         # 清空当前存储的梯度更新
         self.current_updates = dict()
 
-    @staticmethod
-    def get_block(block_height) -> Union[Block, None]:
-        if os.path.isfile("./blocks/federated_model" + str(block_height) + ".block"):
-            with open("./blocks/federated_model" + str(block_height) + ".block", "rb") as f:
+    def get_block(self, block_height) -> Union[Block, None]:
+        """
+        获取指定区块高度的完整区块
+
+        :param block_height: 区块高度
+        :return:
+        """
+
+        block_path = self.block_dir + path_separator + self.miner_id + path_separator + "/federated_model" +\
+                     str(block_height) + block_suffix
+        if os.path.isfile(block_path):
+            with open(block_path, "rb") as f:
                 block = pickle.loads(f.read())
                 return block
         return None
@@ -247,16 +242,21 @@ class Blockchain(object):
 
         return self.hashchain[-1]
 
-    def proof_of_work(self, stop_event) -> Tuple[Block, bool]:
+    def proof_of_work(self, stop_event, genesis_model: Model = None) -> Tuple[Block, bool]:
         """
         工作量证明挖矿
 
+        :param genesis_model: 创世 model
         :param stop_event:
         :return: block_info: 区块信息
         :return: stopped:
         """
 
-        block = self.make_block()
+        if genesis_model is not None:
+            block = self.make_block(previous_hash="-1", genesis_model=genesis_model)
+        else:
+            block = self.make_block()
+
         stopped = False
         block_head = block.block_head
 
@@ -268,7 +268,7 @@ class Blockchain(object):
                 break
             # nonce 不断增加直至合法
             block_head.nonce += 1
-            if block_head.nonce % 1000 == 0:
+            if block_head.nonce % 10000 == 0:
                 logger.info("mining: {}".format(block_head.nonce))
 
         # 如果是自己挖到的区块，则存储该区块
@@ -277,7 +277,7 @@ class Blockchain(object):
         if stopped:
             logger.info("有其他节点挖掘出了区块")
         else:
-            logger.info("区块挖掘结束")
+            logger.info("区块挖掘结束 nonce 值为: {} 区块哈希为 {}".format(block_head.nonce, block_head.get_block_hash()))
 
         return block, stopped
 
@@ -355,3 +355,24 @@ class Blockchain(object):
                     self.cursor_block = pickle.loads(rsp.json()['block'])
             return True
         return False
+
+
+def compute_global_model(base_model: nn.Module, updates: Union[list[Update], None], learning_rate):
+
+    """
+    聚合全局模型
+    :param base_model:
+    :param updates:
+    :param learning_rate:
+    :return:
+    """
+
+    dataset = GlobalDataset("d:/dataset", train=False)
+    dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
+    worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
+                      epochs=None, device="cuda", learning_rate=learning_rate)
+    worker.build(base_model, updates)
+    model = worker.get_model()
+    accuracy = worker.evaluate()
+    worker.close()
+    return accuracy, model

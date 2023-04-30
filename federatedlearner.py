@@ -37,11 +37,12 @@ class NNWorker:
         self.device = device
 
     def build(self, base_model, updates):
-
         """
         基于模型参数和梯度更新 构建新的模型
-        :return:
         """
+        if updates is None:
+            self.model = base_model
+            return
         number_of_updates = len(updates)
         global_para = base_model.state_dict()
         for index in range(number_of_updates):

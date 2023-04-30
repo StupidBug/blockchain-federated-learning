@@ -70,7 +70,7 @@ class Client:
         """
 
         block: Block = self.get_full_block(block_info)
-        return block.block_body.base_model
+        return block.block_body.model_updated
 
     def get_miner_status(self):
         response = requests.get('http://{node}/status'.format(node=self.miner))

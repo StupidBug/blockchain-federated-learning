@@ -49,15 +49,16 @@ class PoWThread(Thread):
     """
     工作量证明挖矿
     """
-    def __init__(self, stop_event, blockchain, node_identifier):
+    def __init__(self, stop_event, blockchain, node_identifier, genesis_model: Model = None):
         self.stop_event = stop_event
         Thread.__init__(self)
         self.blockchain = blockchain
         self.node_identifier = node_identifier
         self.response = None
+        self.genesis_model = genesis_model
 
     def run(self):
-        block, stopped = self.blockchain.proof_of_work(self.stop_event)
+        block, stopped = self.blockchain.proof_of_work(self.stop_event, self.genesis_model)
         self.response = {
             'message': "End mining",
             'stopped': stopped,
@@ -81,15 +82,16 @@ status = {
     }
 
 
-def mine():
+def mine(genesis_model=None):
     """
     挖矿
 
+    :param genesis_model: 挖掘创世区块，需要提供创世模型
     :return:
     """
 
     STOP_EVENT.clear()
-    thread = PoWThread(STOP_EVENT, status["blockchain"], status["id"])
+    thread = PoWThread(STOP_EVENT, status["blockchain"], status["id"], genesis_model=genesis_model)
     status['s'] = "mining"
     thread.start()
 
@@ -317,9 +319,9 @@ if __name__ == '__main__':
         logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
         status['blockchain'] = Blockchain(miner_id=address,
                                           block_dir=args.block_dir,
-                                          genesis_model=model,
-                                          gen=True,
                                           update_limit=args.update_limit)
+        logger.info("开始 mining 创世区块")
+        mine(genesis_model=model)
 
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:
