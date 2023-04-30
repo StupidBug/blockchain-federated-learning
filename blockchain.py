@@ -100,7 +100,7 @@ class Blockchain(object):
     区块链
     """
 
-    def __init__(self, miner_id, block_dir, update_limit=10, time_limit=1800):
+    def __init__(self, miner_id, block_dir, dataset_dir, update_limit=10, time_limit=1800):
         """
         初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
         都是以 list(dict) 的类型进行存储
@@ -121,7 +121,7 @@ class Blockchain(object):
         self.time_limit = time_limit
         self.block_dir = block_dir
         self.node_addresses = set()
-        self.dataset_dir = "./dataset"
+        self.dataset_dir = dataset_dir
         # TODO 矿工的验证集应该怎么设置
         self.dataset_test = self.load_dataset()
 

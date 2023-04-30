@@ -2,6 +2,7 @@
   - Blockchain for Federated Learning - 
     Client script 
 """
+import os.path
 
 import torch
 from federatedlearner import *
@@ -16,13 +17,14 @@ import torchvision.transforms as transforms
 
 
 class Client:
-    def __init__(self, miner, dataset_dir, name):
+    def __init__(self, miner, dataset_dir, updates_dir, name):
         """
         :param miner: 矿工地址
         :param dataset_dir: 数据集存放文件夹
         """
         self.id = str(uuid4()).replace('-', '')
         self.name = name
+        self.updates_dir  = updates_dir
         self.dataset_dir = dataset_dir
         self.miner = miner
         self.dataset_train, self.dataset_test = self.load_dataset()
@@ -155,7 +157,10 @@ class Client:
             model = client.get_model(latest_block_head)
             model_updated, accuracy, cmp_time = client.update_model(model, 10)
             # 保存梯度更新
-            with open("./clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
+            if not os.path.isdir(self.updates_dir):
+                os.mkdir(self.updates_dir)
+            with open(self.updates_dir + path_separator +
+                      "device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
                 pickle.dump(model_updated, f)
             logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, epoch, accuracy))
 
@@ -166,14 +171,16 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
     parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
+    parser.add_argument('-u', '--updates_dir', default=".\\updates", help='updates数据存放文件夹')
     parser.add_argument('-e', '--epochs', default=10, type=int, help='client本地训练的轮次')
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
     args = parser.parse_args()
 
     client = Client(miner=args.miner,
                     dataset_dir=args.dataset_dir,
-                    name=args.name)
+                    name=args.name,
+                    updates_dir=args.updates_dir)
 
-    logger.info("Client节点:{} 已完成初始化".format(client.name))
+    logger.info("节点:{} 已完成初始化".format(client.name))
 
     client.work(args.epochs)
