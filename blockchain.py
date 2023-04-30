@@ -49,7 +49,6 @@ class Update:
 class Block:
     def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, accuracy, updates: list[Update],
                  time_limit, update_limit):
-
         # 区块体
         self.block_body = self.BlockBody(
             model_updated=model_updated,
@@ -191,7 +190,7 @@ class Blockchain(object):
             updates=self.current_updates,
             time_limit=time_limit,
             update_limit=update_limit
-            )
+        )
         return block
 
     def store_block(self, block: Block) -> None:
@@ -205,7 +204,9 @@ class Blockchain(object):
 
         # cursor_block 存储区块链中的最新完整区块，只有挖出了下一个区块时，才会将区块存储
         if self.cursor_block is not None:
-            block_path = self.block_dir + path_separator + self.miner_id + path_separator + "/federated_model" + \
+            if not os.path.isdir(self.block_dir):
+                os.mkdir(self.block_dir)
+            block_path = self.block_dir + path_separator + "federated_model" + \
                          str(self.cursor_block.block_head.block_height) + block_suffix
             with open(block_path, "wb") as f:
                 pickle.dump(self.cursor_block, f)
@@ -223,7 +224,7 @@ class Blockchain(object):
         :return:
         """
 
-        block_path = self.block_dir + path_separator + self.miner_id + path_separator + "/federated_model" +\
+        block_path = self.block_dir + path_separator + self.miner_id + path_separator + "/federated_model" + \
                      str(block_height) + block_suffix
         if os.path.isfile(block_path):
             with open(block_path, "rb") as f:
@@ -243,7 +244,7 @@ class Blockchain(object):
             update=update,
             datasize=datasize,
             computing_time=computing_time
-            ))
+        ))
         return self.latest_block.block_height + 1
 
     @property
@@ -291,7 +292,8 @@ class Blockchain(object):
         if stopped:
             logger.info("有其他节点挖掘出了区块")
         else:
-            logger.info("区块挖掘结束 nonce 值为: {} 区块哈希为 {}".format(block_head.nonce, block_head.get_block_hash()))
+            logger.info(
+                "区块挖掘结束 nonce 值为: {} 区块哈希为 {}".format(block_head.nonce, block_head.get_block_hash()))
 
         return block, stopped
 

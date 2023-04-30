@@ -153,7 +153,7 @@ class Client:
 
             # 开始进行本地训练
             model = client.get_model(latest_block_head)
-            model_updated, accuracy, cmp_time = client.update_model(model, 10)
+            model_updated, accuracy, cmp_time = client.update_model(model, 2)
             # 保存梯度更新
             with open("./clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
                 pickle.dump(model_updated, f)

@@ -20,6 +20,7 @@ import log
 
 """设置全局日志"""
 logger = log.setup_custom_logger("miner")
+path_separator = "\\"
 
 
 def make_base(dataset_dir):
@@ -309,6 +310,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--update_limit', default=2, type=int, help='单个区块中最多包含多少个更新')
     parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-b', '--block_dir', default=".\\block", help="区块文件存储位置")
+    parser.add_argument('-m', '--miner_name', default="miner_1", help="矿工 name")
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
     args = parser.parse_args()
     # 矿工地址
@@ -320,22 +322,23 @@ if __name__ == '__main__':
 
     # 如果该矿工为第一个矿工，则需初始化一个新的区块链
     if args.genesis == 1:
-        logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(address))
+        logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(args.miner_name))
         model: Model = make_base(args.dataset_dir)
         logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
-        status['blockchain'] = Blockchain(miner_id=address,
-                                          block_dir=args.block_dir,
+        status['blockchain'] = Blockchain(miner_id=args.miner_name,
+                                          block_dir=args.block_dir + path_separator + args.miner_id,
                                           update_limit=args.update_limit)
-        logger.info("开始 mining 创世区块")
+        logger.info("矿工:{} 开始 mining 创世区块".format(args.miner_name))
         mine(genesis_model=model)
 
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:
-        status['blockchain'] = Blockchain(miner_id=address,
-                                          block_dir=args.block_dir)
+        status['blockchain'] = Blockchain(miner_id=args.miner_name,
+                                          block_dir=args.block_dir + path_separator + args.miner_id)
         status['blockchain'].register_node(args.maddress)
         requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
 
     # 开启矿工服务
+    logger.info("矿工:{} 开始在 {} 进行监听".format(args.miner_name, address))
     app.run(host=args.host, port=args.port)
