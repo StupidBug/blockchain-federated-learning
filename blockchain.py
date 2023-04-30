@@ -283,7 +283,7 @@ class Blockchain(object):
                 break
             # nonce 不断增加直至合法
             block_head.nonce += 1
-            if block_head.nonce % 100000 == 0:
+            if block_head.nonce % 1000000 == 0:
                 logger.info("mining: {}".format(block_head.nonce))
 
         # 如果是自己挖到的区块，则存储该区块
@@ -292,8 +292,7 @@ class Blockchain(object):
         if stopped:
             logger.info("有其他节点挖掘出了区块")
         else:
-            logger.info(
-                "区块挖掘结束 nonce 值为: {} 区块哈希为 {}".format(block_head.nonce, block_head.get_block_hash()))
+            logger.info("区块挖掘成功，区块头为: {}".format(block_head.__dict__))
 
         return block, stopped
 

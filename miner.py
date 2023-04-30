@@ -326,7 +326,7 @@ if __name__ == '__main__':
         model: Model = make_base(args.dataset_dir)
         logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
         status['blockchain'] = Blockchain(miner_id=args.miner_name,
-                                          block_dir=args.block_dir + path_separator + args.miner_id,
+                                          block_dir=args.block_dir + path_separator + args.miner_name,
                                           update_limit=args.update_limit)
         logger.info("矿工:{} 开始 mining 创世区块".format(args.miner_name))
         mine(genesis_model=model)
@@ -334,7 +334,7 @@ if __name__ == '__main__':
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:
         status['blockchain'] = Blockchain(miner_id=args.miner_name,
-                                          block_dir=args.block_dir + path_separator + args.miner_id)
+                                          block_dir=args.block_dir + path_separator + args.miner_name)
         status['blockchain'].register_node(args.maddress)
         requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
