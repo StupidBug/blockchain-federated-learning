@@ -17,6 +17,7 @@ from datasets import *
 from utils import *
 from typing import *
 from model import Model
+import torchvision.transforms as transforms
 import os
 
 logger = log.setup_custom_logger("blockchain")
@@ -100,7 +101,7 @@ class Blockchain(object):
     区块链
     """
 
-    def __init__(self, miner_id, block_dir, update_limit=10, time_limit=1800,):
+    def __init__(self, miner_id, block_dir, update_limit=10, time_limit=1800):
         """
         初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
         都是以 list(dict) 的类型进行存储
@@ -121,6 +122,19 @@ class Blockchain(object):
         self.time_limit = time_limit
         self.block_dir = block_dir
         self.node_addresses = set()
+        self.dataset_dir = "./dataset"
+        # TODO 矿工的验证集应该怎么设置
+        self.dataset_test = self.load_dataset()
+
+    def load_dataset(self) -> GlobalDataset:
+        """
+        加载数据集
+
+        :return 数据集
+        """
+        transform = transforms.Compose([transforms.ToTensor()])
+        dataset_test = GlobalDataset(root=self.dataset_dir, train=False, transform=transform)
+        return dataset_test
 
     def register_node(self, address):
         """
@@ -165,7 +179,7 @@ class Blockchain(object):
         elif len(self.current_updates) > 0:
             # TODO
             base = self.cursor_block.block_body.model_updated
-            accuracy, model_updated = compute_global_model(base, self.current_updates, 1)
+            accuracy, model_updated = self.compute_global_model(base, self.current_updates, 1)
 
         block_height = len(self.hashchain) + 1
         block = Block(
@@ -199,7 +213,7 @@ class Blockchain(object):
 
         self.hashchain.append(block.block_head)
         # 清空当前存储的梯度更新
-        self.current_updates = dict()
+        self.current_updates = list()
 
     def get_block(self, block_height) -> Union[Block, None]:
         """
@@ -268,7 +282,7 @@ class Blockchain(object):
                 break
             # nonce 不断增加直至合法
             block_head.nonce += 1
-            if block_head.nonce % 10000 == 0:
+            if block_head.nonce % 100000 == 0:
                 logger.info("mining: {}".format(block_head.nonce))
 
         # 如果是自己挖到的区块，则存储该区块
@@ -349,30 +363,28 @@ class Blockchain(object):
             hblock = self.hashchain[-1]
             rsp = requests.post('http://{node}/block'.format(node=bnode),
                                 json={'hblock': hblock})
-            self.current_updates = dict()
+            self.current_updates = list()
             if rsp.status_code == 200:
                 if rsp.json()['valid']:
                     self.cursor_block = pickle.loads(rsp.json()['block'])
             return True
         return False
 
+    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None], learning_rate):
 
-def compute_global_model(base_model: nn.Module, updates: Union[list[Update], None], learning_rate):
+        """
+        聚合全局模型
+        :param base_model:
+        :param updates:
+        :param learning_rate:
+        :return:
+        """
 
-    """
-    聚合全局模型
-    :param base_model:
-    :param updates:
-    :param learning_rate:
-    :return:
-    """
-
-    dataset = GlobalDataset("d:/dataset", train=False)
-    dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
-    worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
-                      epochs=None, device="cuda", learning_rate=learning_rate)
-    worker.build(base_model, updates)
-    model = worker.get_model()
-    accuracy = worker.evaluate()
-    worker.close()
-    return accuracy, model
+        dataloader_global = DataLoader(self.dataset_test, batch_size=32, shuffle=True)
+        worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
+                          epochs=None, device="cuda", learning_rate=learning_rate)
+        worker.build(base_model, updates)
+        model = worker.get_model()
+        accuracy = worker.evaluate()
+        worker.close()
+        return accuracy, model

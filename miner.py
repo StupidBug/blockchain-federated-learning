@@ -119,21 +119,26 @@ def new_transaction():
 
     :return:
     """
+
+    logger.info("接收到更新交易")
     # 区块链状态校验
     if status['s'] != "receiving":
+        logger.warn("Miner 当前状态不接收交易")
         return 'Miner not receiving', 400
 
     # 参数合法性校验
     values = request.get_json()
-    required = ['client', 'base_block_height', 'update', 'datasize', 'computing_time']
+    required = ['client', 'base_block_height', 'model_updated', 'datasize', 'computing_time']
     if not all(k in values for k in required):
+        logger.warn("请求参数缺少必须值")
         return 'Missing values', 400
     if values['client'] in status['blockchain'].current_updates:
+        logger.warn("请求参数的更新已经被存储")
         return 'Model already stored', 400
 
     index = status['blockchain'].new_update(values['client'],
                                             values['base_block_height'],
-                                            dict(pickle.loads(codecs.decode(values['model_updated'].encode(), "base64"))),
+                                            pickle.loads(codecs.decode(values['model_updated'].encode(), "base64")),
                                             values['datasize'],
                                             values['computing_time'])
     # 向所有miner节点转发该交易
@@ -142,10 +147,11 @@ def new_transaction():
 
     # 交易合法性校验，成功则开始 mine
     if (status['s'] == 'receiving' and (
-        len(status["blockchain"].current_updates) >= status['blockchain'].latest_block['update_limit'] or
-            time.time()-status['blockchain'].latest_block['timestamp'] > status['blockchain'].latest_block['time_limit'])):
+        len(status["blockchain"].current_updates) >= status['blockchain'].latest_block.update_limit or
+            time.time()-status['blockchain'].latest_block.timestamp > status['blockchain'].latest_block.time_limit)):
         mine()
     response = {'message': "Update will be added to block {index}".format(index=index)}
+    logger.info("该更新请求将被添加至区块中")
     return jsonify(response), 201
 
 
@@ -300,7 +306,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', default=5000, type=int, help='矿工监听的端口')
     parser.add_argument('-i', '--host', default='127.0.0.1', help='矿工的IP地址')
     parser.add_argument('-g', '--genesis', default=1, type=int, help='初始化创世区块')
-    parser.add_argument('-l', '--update_limit', default=10, type=int, help='单个区块中最多包含多少个更新')
+    parser.add_argument('-l', '--update_limit', default=2, type=int, help='单个区块中最多包含多少个更新')
     parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-b', '--block_dir', default=".\\block", help="区块文件存储位置")
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')

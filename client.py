@@ -78,7 +78,7 @@ class Client:
         if response.status_code == 200:
             return response.json()
 
-    def load_dataset(self) -> Tuple[data.Dataset, data.Dataset]:
+    def load_dataset(self) -> Tuple[NodeDataset, GlobalDataset]:
         """
         加载数据集
 
@@ -124,9 +124,8 @@ class Client:
         requests.post('http://{node}/transactions/new'.format(node=self.miner), json={
                 'client': self.id,
                 'base_block_height': base_block_height,
-                # TODO 学习这个编码
-                'update': codecs.encode(pickle.dumps(model_updated), "base64").decode(),
-                'datasize': len(self.dataset_train['train_images']),
+                'model_updated': codecs.encode(pickle.dumps(model_updated), "base64").decode(),
+                'datasize': len(self.dataset_train),
                 'computing_time': cmp_time})
        
     def work(self, epochs) -> None:
@@ -156,7 +155,7 @@ class Client:
             model = client.get_model(latest_block_head)
             model_updated, accuracy, cmp_time = client.update_model(model, 10)
             # 保存梯度更新
-            with open("clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
+            with open("./clients/device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
                 pickle.dump(model_updated, f)
             logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, epoch, accuracy))
 

@@ -11,7 +11,7 @@ from utils import *
 import torch.optim as optim
 import torch.nn as nn
 
-logger = log.setup_custom_logger("FederatedLearner")
+logger = log.setup_custom_logger("FedLearner")
 
 
 class NNWorker:
@@ -44,9 +44,9 @@ class NNWorker:
             self.model = base_model
             return
         number_of_updates = len(updates)
-        global_para = base_model.state_dict()
+        global_para = base_model.cpu().state_dict()
         for index in range(number_of_updates):
-            net_para = updates[index].cpu().state_dict()
+            net_para = updates[index].update.cpu().state_dict()
 
             if base_model is None:
                 for key in net_para:
