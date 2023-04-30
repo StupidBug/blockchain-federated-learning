@@ -315,7 +315,7 @@ if __name__ == '__main__':
     # 如果该矿工为第一个矿工，则需初始化一个新的区块链
     if args.genesis == 1:
         logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(address))
-        model = make_base(args.dataset_dir)
+        model: Model = make_base(args.dataset_dir)
         logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
         status['blockchain'] = Blockchain(miner_id=address,
                                           block_dir=args.block_dir,

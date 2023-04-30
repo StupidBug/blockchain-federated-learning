@@ -58,13 +58,13 @@ class NNWorker:
         base_model.load_state_dict(global_para)
         self.model = base_model
 
-    def build(self, model):
+    def set_model(self, model):
         """
         基于模型参数构建模型
         :param model:
         :return:
         """
-        self.model.load_state_dict(model)
+        self.model = model
 
     @staticmethod
     def build_base():
@@ -79,9 +79,12 @@ class NNWorker:
 
         logger.info('Training network %s' % str(self.worker_id))
 
-        train_acc = compute_accuracy(self.model, self.train_dataloader, device=self.device)
+        train_acc = compute_accuracy(model=self.model, dataloader=self.train_dataloader, get_confusion_matrix=False,
+                                     device=self.device)
+        logger.info("初始模型训练集准确度:{}".format(train_acc))
         test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
+        logger.info("初始模型测试集准确度:{}".format(test_acc))
 
         logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
         logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
@@ -121,7 +124,8 @@ class NNWorker:
             epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
             logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
 
-        train_acc = compute_accuracy(self.model, self.train_dataloader, device=self.device)
+        train_acc = compute_accuracy(model=self.model, dataloader=self.train_dataloader, get_confusion_matrix=False,
+                                     device=self.device)
         test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
 

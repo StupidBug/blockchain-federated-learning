@@ -47,7 +47,7 @@ def split_dataset(dataset):
     :return: 分割后的数据集
     """
     subset_size = [len(dataset) // split_count] * split_count
-    datasets = random_split(dataset.data, subset_size)
+    datasets = random_split(dataset, subset_size)
     return datasets
 
 

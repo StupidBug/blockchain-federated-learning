@@ -12,6 +12,7 @@ from argparse import ArgumentParser
 from datasets import *
 import time
 from typing import Union, Tuple
+import torchvision.transforms as transforms
 
 
 class Client:
@@ -24,7 +25,7 @@ class Client:
         self.name = name
         self.dataset_dir = dataset_dir
         self.miner = miner
-        self.dataset = self.load_dataset()
+        self.dataset_train, self.dataset_test = self.load_dataset()
 
     def get_latest_block(self) -> dict:
         """
@@ -77,16 +78,18 @@ class Client:
         if response.status_code == 200:
             return response.json()
 
-    def load_dataset(self) -> data.Dataset:
+    def load_dataset(self) -> Tuple[data.Dataset, data.Dataset]:
         """
         加载数据集
 
         :return 数据集
         """
+        transform = transforms.Compose([transforms.ToTensor()])
+        dataset_train = NodeDataset(self.dataset_dir, self.name)
+        dataset_test = GlobalDataset(root=self.dataset_dir, train=False, transform=transform)
+        return dataset_train, dataset_test
 
-        return NodeDataset(self.dataset_dir, self.name)
-
-    def update_model(self, model, epochs) -> Tuple[nn.Module, float, float]:
+    def update_model(self, model: nn.Module, epochs) -> Tuple[nn.Module, float, float]:
         """
         client 在本地训练模型
 
@@ -96,14 +99,12 @@ class Client:
         """
 
         t = time.time()
-        dataset = GlobalDataset(self.dataset_dir, train=False)
-        dataloader_global = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
-        # TODO 待确认参数
-        dataloader_local = DataLoader(self.dataset, batch_size=32, shuffle=True, num_workers=4)
-        worker = NNWorker(train_dataloader=dataloader_local, test_dataloader=dataloader_global, worker_id="Aggregation",
+        test_dataloader = DataLoader(self.dataset_test, batch_size=32, shuffle=True)
+        train_dataloader = DataLoader(self.dataset_train, batch_size=32, shuffle=True)
+        worker = NNWorker(train_dataloader=train_dataloader, test_dataloader=test_dataloader, worker_id="Aggregation",
                           epochs=epochs, device="cuda")
 
-        worker.build(model)
+        worker.set_model(model)
         worker.train()
         model_updated = worker.get_model()
         accuracy = worker.evaluate()
@@ -125,7 +126,7 @@ class Client:
                 'base_block_height': base_block_height,
                 # TODO 学习这个编码
                 'update': codecs.encode(pickle.dumps(model_updated), "base64").decode(),
-                'datasize': len(self.dataset['train_images']),
+                'datasize': len(self.dataset_train['train_images']),
                 'computing_time': cmp_time})
        
     def work(self, epochs) -> None:

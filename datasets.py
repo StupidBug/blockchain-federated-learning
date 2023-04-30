@@ -11,6 +11,7 @@ dataset_suffix = ".dataset"
 
 path_separator = '\\'
 
+
 class GlobalDataset(data.Dataset):
     """
     cifar10数据集，继承 data.Dataset 类，可被用于生成 dataloader 进行训练
