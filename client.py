@@ -17,17 +17,18 @@ import torchvision.transforms as transforms
 
 
 class Client:
-    def __init__(self, miner, dataset_dir, updates_dir, name):
+    def __init__(self, miner, dataset_dir, updates_dir, name, learning_rate):
         """
         :param miner: 矿工地址
         :param dataset_dir: 数据集存放文件夹
         """
         self.id = str(uuid4()).replace('-', '')
         self.name = name
-        self.updates_dir  = updates_dir
+        self.updates_dir = updates_dir
         self.dataset_dir = dataset_dir
         self.miner = miner
         self.dataset_train, self.dataset_test = self.load_dataset()
+        self.learning_rate = learning_rate
 
     def get_latest_block(self) -> dict:
         """
@@ -86,9 +87,9 @@ class Client:
 
         :return 数据集
         """
-        transform = transforms.Compose([transforms.ToTensor()])
-        dataset_train = NodeDataset(self.dataset_dir, self.name)
-        dataset_test = GlobalDataset(root=self.dataset_dir, train=False, transform=transform)
+        train_transform, test_transform = get_transform()
+        dataset_train = NodeDataset(self.dataset_dir, self.name, dataset=None, transform=train_transform)
+        dataset_test = GlobalDataset(root=self.dataset_dir, train=False, transform=test_transform)
         return dataset_train, dataset_test
 
     def update_model(self, model: nn.Module, epochs) -> Tuple[nn.Module, float, float]:
@@ -101,10 +102,10 @@ class Client:
         """
 
         t = time.time()
-        test_dataloader = DataLoader(self.dataset_test, batch_size=32, shuffle=True)
-        train_dataloader = DataLoader(self.dataset_train, batch_size=32, shuffle=True)
-        worker = NNWorker(train_dataloader=train_dataloader, test_dataloader=test_dataloader, worker_id="Aggregation",
-                          epochs=epochs, device="cuda")
+        test_dataloader = DataLoader(self.dataset_test, batch_size=32, shuffle=False, drop_last=False)
+        train_dataloader = DataLoader(self.dataset_train, batch_size=64, shuffle=True, drop_last=False)
+        worker = NNWorker(train_dataloader=train_dataloader, test_dataloader=test_dataloader, worker_id=self.name,
+                          epochs=epochs, device="cuda", learning_rate=self.learning_rate)
 
         worker.set_model(model)
         worker.train()
@@ -130,39 +131,41 @@ class Client:
                 'datasize': len(self.dataset_train),
                 'computing_time': cmp_time})
        
-    def work(self, epochs) -> None:
+    def work(self, epochs, common_rounds) -> None:
         """
         client 本地训练模型并发送交易给区块链
 
         :param epochs: 训练轮次，每训练完一个轮次将发送至区块链中
+        :param common_rounds 共识训练轮次：获取模型，本地训练，发送更新 为一个轮次
         """
         # 区块链中最新区块的区块高度
-        latest_block_height = -1
-        for epoch in range(epochs):
+        base_block_height = -1
+        for common_round in range(common_rounds):
             # 等待区块链可接受
             wait = True
             while wait:
                 status = client.get_miner_status()
-                if status['status'] != "receiving" or latest_block_height == status['last_model_index']:
+                if status['status'] != "receiving" or base_block_height == status['last_model_index']:
                     time.sleep(10)
                 else:
                     wait = False
 
             # 获取最新区块信息
             latest_block_head = client.get_latest_block()
-            base_block_height = latest_block_head
+            base_block_height = latest_block_head['block_height']
             logger.info("区块链中最新区块全局模型的准确率: {}".format(latest_block_head['accuracy']))
 
             # 开始进行本地训练
             model = client.get_model(latest_block_head)
-            model_updated, accuracy, cmp_time = client.update_model(model, 10)
+            model_updated, accuracy, cmp_time = client.update_model(model, epochs=epochs)
+
             # 保存梯度更新
             if not os.path.isdir(self.updates_dir):
                 os.mkdir(self.updates_dir)
             with open(self.updates_dir + path_separator +
-                      "device" + str(self.id) + "_model_v" + str(epoch) + ".block", "wb") as f:
+                      "device" + str(self.id) + "_model_v" + str(common_round) + ".block", "wb") as f:
                 pickle.dump(model_updated, f)
-            logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, epoch, accuracy))
+            logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} ".format(self.id, common_round, accuracy))
 
             client.send_update(model_updated, cmp_time, base_block_height)
             
@@ -172,15 +175,18 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
     parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-u', '--updates_dir', default=".\\updates", help='updates数据存放文件夹')
-    parser.add_argument('-e', '--epochs', default=10, type=int, help='client本地训练的轮次')
+    parser.add_argument('-e', '--epochs', default=5, type=int, help='client本地训练的轮次')
+    parser.add_argument('-c', '--common_rounds', default=50, type=int, help='client共识训练的轮次')
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
+    parser.add_argument('-l', '--learning_rate', default="0.1", type=float, help='client 本地训练学习率')
     args = parser.parse_args()
 
     client = Client(miner=args.miner,
                     dataset_dir=args.dataset_dir,
                     name=args.name,
-                    updates_dir=args.updates_dir)
+                    updates_dir=args.updates_dir,
+                    learning_rate=args.learning_rate)
 
     logger.info("节点:{} 已完成初始化".format(client.name))
 
-    client.work(args.epochs)
+    client.work(args.epochs, args.common_rounds)

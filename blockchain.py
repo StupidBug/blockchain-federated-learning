@@ -178,7 +178,7 @@ class Blockchain(object):
         elif len(self.current_updates) > 0:
             # TODO
             base = self.cursor_block.block_body.model_updated
-            accuracy, model_updated = self.compute_global_model(base, self.current_updates, 1)
+            accuracy, model_updated = self.compute_global_model(base, self.current_updates)
 
         block_height = len(self.hashchain) + 1
         block = Block(
@@ -371,19 +371,18 @@ class Blockchain(object):
             return True
         return False
 
-    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None], learning_rate):
+    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None]):
 
         """
         聚合全局模型
         :param base_model:
         :param updates:
-        :param learning_rate:
         :return:
         """
 
         dataloader_global = DataLoader(self.dataset_test, batch_size=32, shuffle=True)
         worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
-                          epochs=None, device="cuda", learning_rate=learning_rate)
+                          epochs=None, device="cuda")
         worker.build(base_model, updates)
         model = worker.get_model()
         accuracy = worker.evaluate()

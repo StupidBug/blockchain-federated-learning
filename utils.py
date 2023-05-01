@@ -73,6 +73,15 @@ def hash_sha256(text: object):
     return hashlib.sha256(str(pickle.dumps(text)).encode()).hexdigest()
 
 
+class AddGaussianNoise(object):
+    def __init__(self, mean=0., std=1.):
+        self.std = std
+        self.mean = mean
+
+    def __call__(self, tensor):
+        return tensor + torch.randn(tensor.size()) * self.std + self.mean
+
+
 def get_transform():
     transform_train = transforms.Compose([
         transforms.ToTensor(),
@@ -83,8 +92,11 @@ def get_transform():
         transforms.RandomCrop(32),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
+        AddGaussianNoise(0., 0)
     ])
     # data prep for test set
     transform_test = transforms.Compose([
-        transforms.ToTensor()])
+        transforms.ToTensor(),
+        AddGaussianNoise(0., 0)
+    ])
     return transform_train, transform_test

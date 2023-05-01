@@ -124,7 +124,7 @@ def new_transaction():
     logger.info("接收到更新交易")
     # 区块链状态校验
     if status['s'] != "receiving":
-        logger.warn("Miner 当前状态不接收交易")
+        logger.warning("Miner 当前状态不接收交易")
         return 'Miner not receiving', 400
 
     # 参数合法性校验

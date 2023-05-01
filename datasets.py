@@ -70,10 +70,11 @@ class GlobalDataset(data.Dataset):
 
 class NodeDataset(data.Dataset):
 
-    def __init__(self, dataset_dir, name, dataset=None):
+    def __init__(self, dataset_dir, name, dataset=None, transform=None):
         self.name = name
         self.dataset_dir = dataset_dir
         self.data = self.load_dataset(dataset)
+        self.transform = transform
 
     def load_dataset(self, dataset):
         if dataset is None:
@@ -90,8 +91,11 @@ class NodeDataset(data.Dataset):
         logger.info("节点:{} 数据集已加载成功".format(self.name))
         return dataset
 
-    def __getitem__(self, index) -> T_co:
-        return self.data.__getitem__(index)
+    def __getitem__(self, index):
+        img, target = self.data[index]
+        if self.transform:
+            img = self.transform(img)
+        return img, target
 
     def __len__(self):
         return len(self.data)

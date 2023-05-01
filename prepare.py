@@ -56,10 +56,8 @@ def get_cifar10_dataset():
     加载 cifar10 数据
     """
 
-    transform = transforms.Compose([transforms.ToTensor()])
-
-    train_ds = GlobalDataset(dataset_dir, train=True, transform=transform, name="CIFAR10_TRAIN")
-    test_ds = GlobalDataset(dataset_dir, train=False, transform=transform, name="CIFAR10_TEST")
+    train_ds = GlobalDataset(dataset_dir, train=True, transform=None, name="CIFAR10_TRAIN")
+    test_ds = GlobalDataset(dataset_dir, train=False, transform=None, name="CIFAR10_TEST")
 
     return train_ds, test_ds
 

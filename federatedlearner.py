@@ -53,7 +53,7 @@ class NNWorker:
                     global_para[key] = net_para[key] * (1 / number_of_updates)
             else:
                 for key in net_para:
-                    global_para[key] += net_para[key] * (1 / number_of_updates)
+                    global_para[key] = net_para[key] * (1 / number_of_updates)
 
         base_model.load_state_dict(global_para)
         self.model = base_model
@@ -77,17 +77,17 @@ class NNWorker:
         :return:
         """
 
-        logger.info('Training network %s' % str(self.worker_id))
+        logger.info("{} 开始本地训练模型".format(self.worker_id))
 
         train_acc = compute_accuracy(model=self.model, dataloader=self.train_dataloader, get_confusion_matrix=False,
                                      device=self.device)
-        logger.info("初始模型训练集准确度:{}".format(train_acc))
+        logger.info("{} 初始模型训练集准确度:{}".format(self.worker_id, train_acc))
         test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
-        logger.info("初始模型测试集准确度:{}".format(test_acc))
+        logger.info("{} 初始模型测试集准确度:{}".format(self.worker_id, test_acc))
 
-        logger.info('>> Pre-Training Training accuracy: {}'.format(train_acc))
-        logger.info('>> Pre-Training Test accuracy: {}'.format(test_acc))
+        logger.info('{} 模型本地训练前训练集准确度: {}'.format(self.worker_id, train_acc))
+        logger.info('{} 模型本地训练前测试集准确度: {}'.format(self.worker_id, test_acc))
 
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.learning_rate,
                               momentum=0, weight_decay=1e-5)
@@ -100,7 +100,7 @@ class NNWorker:
             self.train_dataloader = [self.train_dataloader]
 
         # writer = SummaryWriter()
-
+        self.model.to(self.device)
         for epoch in range(self.epochs):
             epoch_loss_collector = []
             for tmp in self.train_dataloader:
@@ -122,18 +122,18 @@ class NNWorker:
                     epoch_loss_collector.append(loss.item())
 
             epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
-            logger.info('Epoch: %d Loss: %f' % (epoch, epoch_loss))
+            logger.info('{} Epoch: {} Loss: {}'.format(self.worker_id, epoch, epoch_loss))
 
         train_acc = compute_accuracy(model=self.model, dataloader=self.train_dataloader, get_confusion_matrix=False,
                                      device=self.device)
         test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
 
-        logger.info('>> Training accuracy: %f' % train_acc)
-        logger.info('>> Test accuracy: %f' % test_acc)
+        logger.info('{} 模型训练后训练集准确度: {}'.format(self.worker_id, train_acc))
+        logger.info('{} 模型训练后测试集准确度: {}'.format(self.worker_id, test_acc))
 
         self.model.to('cpu')
-        logger.info(' ** Training complete **')
+        logger.info('{} 模型本地训练结束'.format(self.worker_id))
         return train_acc, test_acc
 
     def evaluate(self):
