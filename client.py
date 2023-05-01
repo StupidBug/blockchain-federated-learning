@@ -5,7 +5,7 @@
 import os.path
 
 import torch
-from federatedlearner import *
+from fedlearner import *
 from blockchain import *
 from uuid import uuid4
 import requests
@@ -178,7 +178,7 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--epochs', default=5, type=int, help='client本地训练的轮次')
     parser.add_argument('-c', '--common_rounds', default=50, type=int, help='client共识训练的轮次')
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
-    parser.add_argument('-l', '--learning_rate', default="0.1", type=float, help='client 本地训练学习率')
+    parser.add_argument('-l', '--learning_rate', default="0.01", type=float, help='client 本地训练学习率')
     args = parser.parse_args()
 
     client = Client(miner=args.miner,

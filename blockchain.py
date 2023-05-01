@@ -12,7 +12,7 @@ import random
 import codecs
 import log
 from torch.utils.data import DataLoader
-from federatedlearner import *
+from fedlearner import *
 from datasets import *
 from utils import *
 from typing import *

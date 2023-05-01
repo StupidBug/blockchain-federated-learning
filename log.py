@@ -8,7 +8,7 @@ def setup_custom_logger(name):
     :return: logger
     """
     # 设置日志格式
-    formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(module)-15s - %(message)s')
+    formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)5s - %(module)-15s - %(message)s')
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)

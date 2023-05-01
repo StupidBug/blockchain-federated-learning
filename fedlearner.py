@@ -43,17 +43,19 @@ class NNWorker:
         if updates is None:
             self.model = base_model
             return
+
+        base_model = self.build_base()
         number_of_updates = len(updates)
         global_para = base_model.cpu().state_dict()
         for index in range(number_of_updates):
             net_para = updates[index].update.cpu().state_dict()
 
-            if base_model is None:
+            if index == 0:
                 for key in net_para:
                     global_para[key] = net_para[key] * (1 / number_of_updates)
             else:
                 for key in net_para:
-                    global_para[key] = net_para[key] * (1 / number_of_updates)
+                    global_para[key] += net_para[key] * (1 / number_of_updates)
 
         base_model.load_state_dict(global_para)
         self.model = base_model
@@ -76,16 +78,13 @@ class NNWorker:
         训练模型
         :return:
         """
-
+        self.model.to(self.device)
         logger.info("{} 开始本地训练模型".format(self.worker_id))
 
         train_acc = compute_accuracy(model=self.model, dataloader=self.train_dataloader, get_confusion_matrix=False,
                                      device=self.device)
-        logger.info("{} 初始模型训练集准确度:{}".format(self.worker_id, train_acc))
-        test_acc, conf_matrix = compute_accuracy(self.model, self.test_dataloader, get_confusion_matrix=True,
+        test_acc, conf_matrix = compute_accuracy(self.model, dataloader=self.test_dataloader, get_confusion_matrix=True,
                                                  device=self.device)
-        logger.info("{} 初始模型测试集准确度:{}".format(self.worker_id, test_acc))
-
         logger.info('{} 模型本地训练前训练集准确度: {}'.format(self.worker_id, train_acc))
         logger.info('{} 模型本地训练前测试集准确度: {}'.format(self.worker_id, test_acc))
 
@@ -99,8 +98,6 @@ class NNWorker:
         else:
             self.train_dataloader = [self.train_dataloader]
 
-        # writer = SummaryWriter()
-        self.model.to(self.device)
         for epoch in range(self.epochs):
             epoch_loss_collector = []
             for tmp in self.train_dataloader:

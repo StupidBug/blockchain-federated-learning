@@ -7,7 +7,7 @@ import pickle
 
 from blockchain import *
 from threading import Thread, Event
-from federatedlearner import *
+from fedlearner import *
 from datasets import GlobalDataset, NodeDataset
 from flask import *
 from uuid import uuid4
@@ -236,14 +236,17 @@ def get_block():
     # 从cursor_block中获取完整区块
     if status['blockchain'].cursor_block is not None \
             and status['blockchain'].cursor_block.block_head.block_height == block_head_dict["block_height"]:
+        logger.debug("正在从cursor_block中获取完整区块")
         block = status['blockchain'].cursor_block
 
     # 从本地文件中获取完整区块
     elif status["blockchain"].get_block(block_head_dict["block_height"]) is not None:
+        logger.debug("正在从本地文件中获取完整区块")
         block = status["blockchain"].get_block(block_head_dict["block_height"])
 
     # 从其他节点获取完整区块
     else:
+        logger.debug("正在从其他节点获取完区块")
         rsp = requests.post('http://{node}/block'.format(node=['miner']), json=request_json)
         if rsp.status_code == 200:
             block = pickle.loads(codecs.decode(rsp.json()['block'].encode(), "base64"))
