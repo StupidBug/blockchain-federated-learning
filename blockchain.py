@@ -132,7 +132,7 @@ class Blockchain(object):
         :return 数据集
         """
         transform = transforms.Compose([transforms.ToTensor()])
-        dataset_test = GlobalDataset(root=self.dataset_dir, train=False, transform=transform)
+        dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=transform)
         return dataset_test
 
     def register_node(self, address):

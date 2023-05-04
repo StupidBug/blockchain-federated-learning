@@ -32,7 +32,7 @@ def make_base(dataset_dir):
     # TODO 是否使用多种模型（看进度）
     # 必加，原理暂不清楚
     transform = transforms.Compose([transforms.ToTensor()])
-    global_dataset = GlobalDataset(root=dataset_dir, train=False, transform=transform)
+    global_dataset = GlobalDataset(dataset_dir=dataset_dir, train=False, transform=transform)
     dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True)
     worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
                       epochs=None, device="cuda")

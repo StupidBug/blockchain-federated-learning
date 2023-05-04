@@ -88,8 +88,8 @@ class Client:
         :return 数据集
         """
         train_transform, test_transform = get_transform()
-        dataset_train = NodeDataset(self.dataset_dir, self.name, dataset=None, transform=train_transform)
-        dataset_test = GlobalDataset(root=self.dataset_dir, train=False, transform=test_transform)
+        dataset_train = NodeDataset(dataset_dir=self.dataset_dir, filename=self.name, transform=train_transform)
+        dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=test_transform)
         return dataset_train, dataset_test
 
     def update_model(self, model: nn.Module, epochs) -> Tuple[nn.Module, float, float]:

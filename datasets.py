@@ -4,6 +4,13 @@ import numpy as np
 from torch.utils.data.dataset import T_co
 from torchvision.datasets import CIFAR10
 from torch.utils.data import TensorDataset
+from tqdm import tqdm
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision.transforms as transforms
+import medmnist
+from medmnist import INFO, Evaluator
 import log
 
 logger = log.setup_custom_logger("dataset")
@@ -13,89 +20,70 @@ path_separator = '\\'
 
 
 class GlobalDataset(data.Dataset):
-    """
-    cifar10数据集，继承 data.Dataset 类，可被用于生成 dataloader 进行训练
-    """
 
-    def __init__(self, root, train=True, transform=None, target_transform=None, name=None):
-        """
-        构造 cifar10 数据集，如果没有就下载
-        """
-
-        self.root = root
+    def __init__(self, dataset_dir, train=True, transform=None, target_transform=None):
+        self.dataset_dir = dataset_dir
         self.train = train
         self.transform = transform
         self.target_transform = target_transform
-        self.name = name
-        # data 变量名固定，不能更改
-        self.data, self.target = self.__build_truncated_dataset__()
+        self.dataset = self.load_dataset()
 
-    def __build_truncated_dataset__(self):
-
-        # 如果不存在就会下载数据集
-        cifar10 = CIFAR10(self.root, self.train, self.transform, self.target_transform, True)
-
-        dataset = cifar10.data
-        target = np.array(cifar10.targets)
-
-        return dataset, target
-
-    def truncate_channel(self, index):
-        for i in range(index.shape[0]):
-            gs_index = index[i]
-            self.data[gs_index, :, :, 1] = 0.0
-            self.data[gs_index, :, :, 2] = 0.0
-
-    def __getitem__(self, index):
-        """
-        Args:
-            index (int): Index
-
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
-        img, target = self.data[index], self.target[index]
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return img, target
-
-    def __len__(self):
-        return len(self.data)
-
-
-class NodeDataset(data.Dataset):
-
-    def __init__(self, dataset_dir, name, dataset=None, transform=None):
-        self.name = name
-        self.dataset_dir = dataset_dir
-        self.data = self.load_dataset(dataset)
-        self.transform = transform
-
-    def load_dataset(self, dataset):
-        if dataset is None:
-            return self.load_dataset_from_local()
+    def load_dataset(self):
+        if self.train:
+            filename = "global_train_dataset"
         else:
-            return dataset
-
-    def load_dataset_from_local(self):
-        try:
-            dataset = torch.load(self.dataset_dir + path_separator + self.name + dataset_suffix)
-        except Exception:
-            logger.error("节点:{} 无法从本地读取节点数据集", self.name)
-            raise FileNotFoundError
-        logger.info("节点:{} 数据集已加载成功".format(self.name))
+            filename = "global_test_dataset"
+        dataset = torch.load(self.dataset_dir + path_separator + filename + dataset_suffix)
         return dataset
 
     def __getitem__(self, index):
-        img, target = self.data[index]
+        img, target = self.dataset[index]
         if self.transform:
             img = self.transform(img)
         return img, target
 
     def __len__(self):
-        return len(self.data)
+        return len(self.dataset)
+
+
+class NodeDataset(data.Dataset):
+
+    def __init__(self, dataset_dir, filename, transform=None):
+        self.dataset_dir = dataset_dir
+        self.filename = filename
+        self.transform = transform
+        self.dataset = self.load_dataset()
+
+    def load_dataset(self):
+        dataset = torch.load(self.dataset_dir + path_separator + self.filename + dataset_suffix)
+        return dataset
+
+    def __getitem__(self, index) -> T_co:
+        img, target = self.dataset[index]
+        if self.transform:
+            img = self.transform(img)
+        return img, target
+
+    def __len__(self):
+        return len(self.dataset)
+
+
+class DatasetBuilder:
+    @staticmethod
+    def build_medmnist(data_flag='pathmnist', train=True, download=True, transform=None):
+        info = INFO[data_flag]
+        DataClass = getattr(medmnist, info['python_class'])
+        # load the data
+        if train:
+            dataset = DataClass(split='train', transform=transform, download=download)
+        else:
+            dataset = DataClass(split='test', transform=transform, download=download)
+        return dataset
+
+    @staticmethod
+    def build_cifar10(root, train=True, transform=None, target_transform=None, download=True):
+        cifar10 = CIFAR10(root, train, transform, target_transform, download)
+        x = torch.Tensor(cifar10.data)
+        y = torch.Tensor(cifar10.targets)
+        dataset = data.TensorDataset(x, y)
+        return dataset
