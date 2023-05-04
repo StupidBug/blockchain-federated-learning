@@ -4,7 +4,7 @@ import log
 
 from utils import *
 from torch.utils.data import Dataset, random_split
-from datasets import GlobalDataset, NodeDataset
+from datasets import NodeDataset, DatasetBuilder
 from argparse import ArgumentParser
 import torchvision.transforms as transforms
 
@@ -31,13 +31,12 @@ def load_data(filename):
     return torch.load(dataset_dir + filename)
 
 
-def show_dataset_details(dataset):
+def show_dataset_details(dataset, name):
     """
     展示数据集的基本信息
     """
-    node_name = dataset.name
     length = len(dataset)
-    logger.info("节点:{} 数据集长度:{}".format(node_name, length))
+    logger.info("节点:{} 数据集长度:{}".format(name, length))
 
 
 def split_dataset(dataset):
@@ -56,8 +55,21 @@ def get_cifar10_dataset():
     加载 cifar10 数据
     """
 
-    train_ds = GlobalDataset(dataset_dir, train=True, transform=None, name="CIFAR10_TRAIN")
-    test_ds = GlobalDataset(dataset_dir, train=False, transform=None, name="CIFAR10_TEST")
+    train_ds = DatasetBuilder.build_cifar10(dataset_dir, train=True, transform=None,
+                                            target_transform=None, download=True)
+    test_ds = DatasetBuilder.build_cifar10(dataset_dir, train=False, transform=None,
+                                           target_transform=None, download=True)
+
+    return train_ds, test_ds
+
+
+def get_medminst_dataset(data_flag):
+    """
+    加载 medminst 数据
+    """
+
+    train_ds = DatasetBuilder.build_medmnist(data_flag=data_flag, train=True, download=True, transform=None)
+    test_ds = DatasetBuilder.build_medmnist(data_flag=data_flag, train=False, download=True, transform=None)
 
     return train_ds, test_ds
 
@@ -71,17 +83,23 @@ def save_dataset(dateset, dataset_name):
     torch.save(dateset, dataset_dir + path_separator + dataset_name + dataset_suffix)
 
 
-def prepare_data():
-    train_ds, test_ds = get_cifar10_dataset()
-    show_dataset_details(train_ds)
-    save_dataset(train_ds, train_ds.name)
-    save_dataset(test_ds, test_ds.name)
-    show_dataset_details(test_ds)
+def prepare_data(dataset, **kwargs):
+    if dataset == 'cifar10':
+        train_ds, test_ds = get_cifar10_dataset()
+    elif dataset == 'medminst':
+        train_ds, test_ds = get_medminst_dataset(data_flag=kwargs.get("data_flag"))
+    else:
+        logger.error("数据集参数不规范")
+        return
+
+    show_dataset_details(train_ds, "全局训练数据集")
+    show_dataset_details(test_ds, "全局测试训练集")
+    save_dataset(train_ds, "global_train_dataset")
+    save_dataset(test_ds, "global_test_dataset")
     for n, d in enumerate(split_dataset(train_ds)):
         node_name = "node_" + str(n)
-        node_dataset = NodeDataset(dataset_dir=dataset_dir, name=node_name, dataset=d)
-        save_dataset(node_dataset, node_dataset.name)
-        show_dataset_details(node_dataset)
+        save_dataset(d, node_name)
+        show_dataset_details(d, node_name)
 
 
 if __name__ == '__main__':
@@ -94,4 +112,4 @@ if __name__ == '__main__':
     # 数据分割数量
     split_count = args.node_num
     logger.info("开始准备数据集————节点数量为:{} 数据本地存放路径:{}".format(split_count, dataset_dir))
-    prepare_data()
+    prepare_data("cifar10")
