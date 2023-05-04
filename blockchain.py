@@ -101,7 +101,7 @@ class Blockchain(object):
     区块链
     """
 
-    def __init__(self, miner_id, block_dir, dataset_dir, update_limit=10, time_limit=1800):
+    def __init__(self, miner_id, block_dir, dataset_dir, update_limit=10, time_limit=1800, dataset_type="cifar10"):
         """
         初始化区块链, 区块链中只有最新的区块以Block类的形式进行存储，过去的区块
         都是以 list(dict) 的类型进行存储
@@ -125,6 +125,7 @@ class Blockchain(object):
         self.dataset_dir = dataset_dir
         # TODO 矿工的验证集应该怎么设置
         self.dataset_test = self.load_dataset()
+        self.dataset_type = dataset_type
 
     def load_dataset(self) -> GlobalDataset:
         """
@@ -383,7 +384,7 @@ class Blockchain(object):
 
         dataloader_global = DataLoader(self.dataset_test, batch_size=32, shuffle=True)
         worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
-                          epochs=None, device="cuda")
+                          epochs=None, device="cuda", dataset_type=self.dataset_type)
         worker.build(base_model, updates)
         indices = worker.evaluate()
         model = Model(

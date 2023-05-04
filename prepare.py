@@ -45,16 +45,10 @@ def get_cifar10_dataset():
     """
     加载 cifar10 数据
     """
-
-    transform = transforms.Compose([
-        transforms.Resize((32, 32)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
     train_ds = DatasetBuilder.build_cifar10(dataset_dir, train=True, transform=None,
-                                            target_transform=transform, download=True)
+                                            target_transform=None, download=True)
     test_ds = DatasetBuilder.build_cifar10(dataset_dir, train=False, transform=None,
-                                           target_transform=transform, download=True)
+                                           target_transform=None, download=True)
 
     return train_ds, test_ds
 
@@ -63,12 +57,10 @@ def get_medminst_dataset(data_flag):
     """
     加载 medminst 数据
     """
-
     train_ds = DatasetBuilder.build_medmnist(root=dataset_dir, data_flag=data_flag, train=True,
                                              download=True, transform=None)
     test_ds = DatasetBuilder.build_medmnist(root=dataset_dir, data_flag=data_flag, train=False,
                                             download=True, transform=None)
-
     return train_ds, test_ds
 
 
@@ -110,7 +102,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-n', '--node_num', default=2, type=int, help='节点数量')
-    parser.add_argument('-t', '--dataset_type', default="cifar10", type=str, help='数据集类型')
+    parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
     args = parser.parse_args()
     # 数据本地存放路径
     dataset_dir = args.dataset_dir

@@ -45,7 +45,7 @@ def compute_accuracy(model, dataloader, device="cuda"):
                 _, pred_label = torch.max(out.data, 1)
 
                 total += x.data.size()[0]
-                correct += (pred_label == target.data).sum().item()
+                correct += (pred_label == target.data.squeeze()).sum().item()
 
                 if device == "cpu":
                     pred_labels_list = np.append(pred_labels_list, pred_label.numpy())
@@ -80,7 +80,14 @@ class AddGaussianNoise(object):
         return tensor + torch.randn(tensor.size()) * self.std + self.mean
 
 
-def get_transform():
+def get_transform(dataset_type):
+    if dataset_type == "cifar10":
+        return get_transform_cifar()
+    elif dataset_type == "pathmnist":
+        return get_transform_mnist()
+
+
+def get_transform_cifar():
     transform_train = transforms.Compose([
         transforms.ToTensor(),
         transforms.Lambda(lambda x: F.pad(
@@ -94,6 +101,18 @@ def get_transform():
     ])
     # data prep for test set
     transform_test = transforms.Compose([
+        transforms.ToTensor(),
         AddGaussianNoise(0., 0)
     ])
+    return transform_train, transform_test
+
+
+def get_transform_mnist():
+    transform_train = transforms.Compose([
+        transforms.ToTensor(),
+        AddGaussianNoise(0., 0)])
+
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        AddGaussianNoise(0., 0)])
     return transform_train, transform_test

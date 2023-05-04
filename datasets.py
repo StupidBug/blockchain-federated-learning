@@ -74,8 +74,6 @@ class DatasetBuilder:
     def build_medmnist(root, data_flag='pathmnist', train=True, download=True, transform=None):
         info = INFO[data_flag]
         DataClass = getattr(medmnist, info['python_class'])
-        n_channels = info['n_channels']
-        n_classes = len(info['label'])
         # load the data
         if train:
             dataset = DataClass(root=root, split='train', transform=transform, download=download)
@@ -86,7 +84,4 @@ class DatasetBuilder:
     @staticmethod
     def build_cifar10(root, train=True, transform=None, target_transform=None, download=True):
         cifar10 = CIFAR10(root, train, transform, target_transform, download)
-        x = torch.Tensor(cifar10.data)
-        y = torch.Tensor(cifar10.targets)
-        dataset = data.TensorDataset(x, y)
-        return dataset
+        return cifar10

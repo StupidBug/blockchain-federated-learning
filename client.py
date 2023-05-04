@@ -17,7 +17,7 @@ import torchvision.transforms as transforms
 
 
 class Client:
-    def __init__(self, miner, dataset_dir, updates_dir, name, learning_rate):
+    def __init__(self, miner, dataset_dir, updates_dir, name, learning_rate, dataset_type):
         """
         :param miner: 矿工地址
         :param dataset_dir: 数据集存放文件夹
@@ -27,6 +27,7 @@ class Client:
         self.updates_dir = updates_dir
         self.dataset_dir = dataset_dir
         self.miner = miner
+        self.dataset_type = dataset_type
         self.dataset_train, self.dataset_test = self.load_dataset()
         self.learning_rate = learning_rate
 
@@ -87,9 +88,9 @@ class Client:
 
         :return 数据集
         """
-        train_transform, test_transform = get_transform()
-        dataset_train = NodeDataset(dataset_dir=self.dataset_dir, filename=self.name, transform=train_transform)
-        dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=test_transform)
+        transform_train, transform_test = get_transform(self.dataset_type)
+        dataset_train = NodeDataset(dataset_dir=self.dataset_dir, filename=self.name, transform=transform_train)
+        dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=transform_test)
         return dataset_train, dataset_test
 
     def update_model(self, model: nn.Module, epochs) -> Tuple[Model, float]:
@@ -105,7 +106,7 @@ class Client:
         test_dataloader = DataLoader(self.dataset_test, batch_size=32, shuffle=False, drop_last=False)
         train_dataloader = DataLoader(self.dataset_train, batch_size=64, shuffle=True, drop_last=False)
         worker = NNWorker(train_dataloader=train_dataloader, test_dataloader=test_dataloader, worker_id=self.name,
-                          epochs=epochs, device="cuda", learning_rate=self.learning_rate)
+                          epochs=epochs, device="cuda", learning_rate=self.learning_rate, dataset_type=self.dataset_type)
 
         worker.set_model(model)
         worker.train()
@@ -157,7 +158,8 @@ class Client:
             # 获取最新区块信息
             latest_block_head = client.get_latest_block()
             base_block_height = latest_block_head['block_height']
-            logger.info("区块链中最新区块全局模型的准确率: {}".format(latest_block_head['accuracy']))
+            logger.info("区块链中最新区块全局模型的准确率: {} f1分数为: {}".format(latest_block_head['accuracy'],
+                                                                                   latest_block_head['f1_score']))
 
             # 开始进行本地训练
             model = client.get_model(latest_block_head)
@@ -184,13 +186,15 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--common_rounds', default=50, type=int, help='client共识训练的轮次')
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
     parser.add_argument('-l', '--learning_rate', default="0.01", type=float, help='client 本地训练学习率')
+    parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
     args = parser.parse_args()
 
     client = Client(miner=args.miner,
                     dataset_dir=args.dataset_dir,
                     name=args.name,
                     updates_dir=args.updates_dir,
-                    learning_rate=args.learning_rate)
+                    learning_rate=args.learning_rate,
+                    dataset_type=args.dataset_type)
 
     logger.info("节点:{} 已完成初始化".format(client.name))
 

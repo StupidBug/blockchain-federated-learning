@@ -83,11 +83,10 @@ class NNWorker:
         """
         self.model.to(self.device)
         logger.info("{} 开始本地训练模型".format(self.worker_id))
-
-        train_acc, train_f1 = compute_accuracy(model=self.model, dataloader=self.train_dataloader, device=self.device)
         test_acc, test_f1 = compute_accuracy(self.model, dataloader=self.test_dataloader, device=self.device)
-        logger.info('{} 模型本地训练前训练集准确度: {} F1分数为: {}'.format(self.worker_id, train_acc, train_f1))
         logger.info('{} 模型本地训练前测试集准确度: {} F1分数为: {}'.format(self.worker_id, test_acc, test_f1))
+        train_acc, train_f1 = compute_accuracy(model=self.model, dataloader=self.train_dataloader, device=self.device)
+        logger.info('{} 模型本地训练前训练集准确度: {} F1分数为: {}'.format(self.worker_id, train_acc, train_f1))
 
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.learning_rate,
                               momentum=0, weight_decay=1e-5)
@@ -108,7 +107,7 @@ class NNWorker:
                     optimizer.zero_grad()
                     x.requires_grad = True
                     target.requires_grad = False
-                    target = target.long()
+                    target = target.long().squeeze()
 
                     out = self.model(x)
                     loss = criterion(out, target)

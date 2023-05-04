@@ -29,19 +29,8 @@ def make_base(dataset_dir):
     随后 client 提交的 updates 将在这个初始模型上进行更改
     :return:
     """
-
-    transform_train, transform_test = get_transform()
-    # preprocessing
-    # transform = transforms.Compose([
-    #     transforms.ToTensor(),
-    #     transforms.Normalize(mean=[.5], std=[.5])
-    # ])
-    transform = transforms.Compose([
-        transforms.Resize((32, 32)),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
-    global_dataset = GlobalDataset(dataset_dir=dataset_dir, train=False, transform=transform)
+    transform_train, transform_test = get_transform(dataset_type)
+    global_dataset = GlobalDataset(dataset_dir=dataset_dir, train=False, transform=transform_test)
     dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True)
     worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
                       epochs=None, device="cuda", dataset_type=dataset_type)
@@ -327,7 +316,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--block_dir', default=".\\block", help="区块文件存储位置")
     parser.add_argument('-m', '--miner_name', default="miner_1", help="矿工 name")
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
-    parser.add_argument('-t', '--dataset_type', default="cifar10", type=str, help='数据集类型')
+    parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
     args = parser.parse_args()
     # 矿工地址
     address = "{host}:{port}".format(host=args.host, port=args.port)
@@ -342,11 +331,12 @@ if __name__ == '__main__':
     if args.genesis == 1:
         logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(args.miner_name))
         model: Model = make_base(args.dataset_dir)
-        logger.info("区块链中初始全局模型测试集准确率为:{}".format(model.accuracy))
+        logger.info("区块链中初始全局模型测试集准确率为:{} f1分数:{}".format(model.accuracy, model.f1_score))
         status['blockchain'] = Blockchain(miner_id=args.miner_name,
                                           block_dir=args.block_dir + path_separator + args.miner_name,
                                           update_limit=args.update_limit,
-                                          dataset_dir=args.dataset_dir)
+                                          dataset_dir=args.dataset_dir,
+                                          dataset_type=dataset_type)
         logger.info("矿工:{} 开始 mining 创世区块".format(args.miner_name))
         mine(genesis_model=model)
 
@@ -354,7 +344,8 @@ if __name__ == '__main__':
     else:
         status['blockchain'] = Blockchain(miner_id=args.miner_name,
                                           block_dir=args.block_dir + path_separator + args.miner_name,
-                                          dataset_dir=args.dataset_dir)
+                                          dataset_dir=args.dataset_dir,
+                                          dataset_type=dataset_type)
         status['blockchain'].register_node(args.maddress)
         requests.post('http://{node}/nodes/register'.format(node=args.maddress), json={'nodes': [address]})
         status['blockchain'].resolve_conflicts(STOP_EVENT)
