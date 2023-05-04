@@ -172,8 +172,7 @@ class Blockchain(object):
 
         # 当该区块为创世区块，则使用给定模型
         if genesis_model is not None:
-            accuracy = genesis_model.accuracy
-            model_updated = genesis_model.model
+            model_updated = genesis_model
 
         # 存在梯度更新则聚合模型
         elif len(self.current_updates) > 0:
