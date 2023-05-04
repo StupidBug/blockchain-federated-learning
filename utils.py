@@ -47,11 +47,17 @@ def compute_accuracy(model, dataloader, device="cuda"):
                 total += x.data.size()[0]
                 correct += (pred_label == target.data).sum().item()
 
-        f1 = f1_score(true_labels_list, pred_labels_list, average='weighted')
-        accuracy = correct / float(total)
-
+                if device == "cpu":
+                    pred_labels_list = np.append(pred_labels_list, pred_label.numpy())
+                    true_labels_list = np.append(true_labels_list, target.data.numpy())
+                else:
+                    pred_labels_list = np.append(pred_labels_list, pred_label.cpu().numpy())
+                    true_labels_list = np.append(true_labels_list, target.data.cpu().numpy())
     if was_training:
         model.train()
+
+    accuracy = correct / float(total)
+    f1 = f1_score(true_labels_list, pred_labels_list, average='weighted')
 
     return accuracy, f1
 
@@ -88,7 +94,6 @@ def get_transform():
     ])
     # data prep for test set
     transform_test = transforms.Compose([
-        transforms.ToTensor(),
         AddGaussianNoise(0., 0)
     ])
     return transform_train, transform_test

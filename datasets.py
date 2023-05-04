@@ -34,6 +34,7 @@ class GlobalDataset(data.Dataset):
         else:
             filename = "global_test_dataset"
         dataset = torch.load(self.dataset_dir + path_separator + filename + dataset_suffix)
+        logger.info("全局数据集文件: {} 加载完成".format(filename))
         return dataset
 
     def __getitem__(self, index):
@@ -70,14 +71,16 @@ class NodeDataset(data.Dataset):
 
 class DatasetBuilder:
     @staticmethod
-    def build_medmnist(data_flag='pathmnist', train=True, download=True, transform=None):
+    def build_medmnist(root, data_flag='pathmnist', train=True, download=True, transform=None):
         info = INFO[data_flag]
         DataClass = getattr(medmnist, info['python_class'])
+        n_channels = info['n_channels']
+        n_classes = len(info['label'])
         # load the data
         if train:
-            dataset = DataClass(split='train', transform=transform, download=download)
+            dataset = DataClass(root=root, split='train', transform=transform, download=download)
         else:
-            dataset = DataClass(split='test', transform=transform, download=download)
+            dataset = DataClass(root=root, split='test', transform=transform, download=download)
         return dataset
 
     @staticmethod

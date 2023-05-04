@@ -30,11 +30,21 @@ def make_base(dataset_dir):
     :return:
     """
 
-    transform = transforms.Compose([transforms.ToTensor()])
+    transform_train, transform_test = get_transform()
+    # preprocessing
+    # transform = transforms.Compose([
+    #     transforms.ToTensor(),
+    #     transforms.Normalize(mean=[.5], std=[.5])
+    # ])
+    transform = transforms.Compose([
+        transforms.Resize((32, 32)),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
     global_dataset = GlobalDataset(dataset_dir=dataset_dir, train=False, transform=transform)
     dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True)
     worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
-                      epochs=None, device="cuda")
+                      epochs=None, device="cuda", dataset_type=dataset_type)
     worker.build_base()
 
     indices = worker.evaluate()
@@ -317,9 +327,12 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--block_dir', default=".\\block", help="区块文件存储位置")
     parser.add_argument('-m', '--miner_name', default="miner_1", help="矿工 name")
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
+    parser.add_argument('-t', '--dataset_type', default="cifar10", type=str, help='数据集类型')
     args = parser.parse_args()
     # 矿工地址
     address = "{host}:{port}".format(host=args.host, port=args.port)
+    dataset_type = args.dataset_type
+
     status['address'] = address
     if args.genesis == 0 and args.maddress is None:
         raise ValueError("Must set genesis=1 or specify maddress")

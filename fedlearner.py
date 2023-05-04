@@ -5,7 +5,7 @@
 
 import numpy as np
 import pickle
-from model import SimpleCNN
+from model import ModelBuilder
 import log
 from utils import *
 import torch.optim as optim
@@ -16,7 +16,7 @@ logger = log.setup_custom_logger("FedLearner")
 
 class NNWorker:
     def __init__(self, train_dataloader, test_dataloader, worker_id="nn0", epochs=10, device="cuda",
-                 learning_rate=0.01):
+                 learning_rate=0.01, dataset_type="cifar10"):
 
         """
         初始化 NN worker 参数
@@ -32,6 +32,7 @@ class NNWorker:
         self.train_dataloader = train_dataloader
         self.test_dataloader = test_dataloader
         self.learning_rate = learning_rate
+        self.dataset_type = dataset_type
         self.model = self.build_base()
         self.epochs = epochs
         self.device = device
@@ -68,9 +69,11 @@ class NNWorker:
         """
         self.model = model
 
-    @staticmethod
-    def build_base():
-        return SimpleCNN(input_dim=(16 * 5 * 5), hidden_dims=[120, 84], output_dim=10)
+    def build_base(self):
+        if self.dataset_type == "cifar10":
+            return ModelBuilder.build_cifar10_cnn()
+        elif self.dataset_type == "pathmnist":
+            return ModelBuilder.build_pathmnist_cnn()
 
     def train(self):
 
