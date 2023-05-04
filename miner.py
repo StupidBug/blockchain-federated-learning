@@ -29,8 +29,7 @@ def make_base(dataset_dir):
     随后 client 提交的 updates 将在这个初始模型上进行更改
     :return:
     """
-    # TODO 是否使用多种模型（看进度）
-    # 必加，原理暂不清楚
+
     transform = transforms.Compose([transforms.ToTensor()])
     global_dataset = GlobalDataset(dataset_dir=dataset_dir, train=False, transform=transform)
     dataloader_global = DataLoader(global_dataset, batch_size=32, shuffle=True)
@@ -38,9 +37,12 @@ def make_base(dataset_dir):
                       epochs=None, device="cuda")
     worker.build_base()
 
+    indices = worker.evaluate()
+
     base_model = Model(
         model=worker.get_model(),
-        accuracy=worker.evaluate()
+        accuracy=indices["accuracy"],
+        f1_score=indices["f1_score"]
     )
     worker.close()
     return base_model

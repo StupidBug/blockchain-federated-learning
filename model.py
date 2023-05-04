@@ -33,6 +33,7 @@ class SimpleCNN(nn.Module):
 
 
 class Model:
-    def __init__(self, model, accuracy):
+    def __init__(self, model, accuracy, f1_score):
         self.model = model
         self.accuracy = accuracy
+        self.f1_score = f1_score

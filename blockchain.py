@@ -12,9 +12,8 @@ import random
 import codecs
 import log
 from torch.utils.data import DataLoader
-from fedlearner import *
+from fedlearner import NNWorker, hash_sha256
 from datasets import *
-from utils import *
 from typing import *
 from model import Model
 import torchvision.transforms as transforms
@@ -47,8 +46,8 @@ class Update:
 
 
 class Block:
-    def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, accuracy, updates: list[Update],
-                 time_limit, update_limit):
+    def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, accuracy, f1_score: float,
+                 updates: list[Update], time_limit, update_limit):
         # 区块体
         self.block_body = self.BlockBody(
             model_updated=model_updated,
@@ -62,13 +61,14 @@ class Block:
             block_body_hash=hash_sha256(self.block_body),
             miner=miner_id,
             accuracy=accuracy,
+            f1_score=f1_score,
             time_limit=time_limit,
             update_limit=update_limit,
             nonce=random.randint(0, 100000000)
         )
 
     class BlockHead:
-        def __init__(self, timestamp, previous_hash, block_height, block_body_hash, miner, accuracy, time_limit,
+        def __init__(self, timestamp, previous_hash, block_height, block_body_hash, miner, accuracy, f1_score, time_limit,
                      update_limit, nonce):
             self.timestamp = timestamp
             self.previous_hash = previous_hash
@@ -76,6 +76,7 @@ class Block:
             self.hash = block_body_hash
             self.miner = miner
             self.accuracy = accuracy
+            self.f1_score = f1_score
             self.time_limit = time_limit
             self.update_limit = update_limit
             self.nonce = nonce
@@ -178,15 +179,16 @@ class Blockchain(object):
         elif len(self.current_updates) > 0:
             # TODO
             base = self.cursor_block.block_body.model_updated
-            accuracy, model_updated = self.compute_global_model(base, self.current_updates)
+            model_updated = self.compute_global_model(base, self.current_updates)
 
         block_height = len(self.hashchain) + 1
         block = Block(
             previous_hash=previous_hash,
             miner_id=self.miner_id,
             block_height=block_height,
-            model_updated=model_updated,
-            accuracy=accuracy,
+            model_updated=model_updated.model,
+            accuracy=model_updated.accuracy,
+            f1_score=model_updated.f1_score,
             updates=self.current_updates,
             time_limit=time_limit,
             update_limit=update_limit
@@ -371,7 +373,7 @@ class Blockchain(object):
             return True
         return False
 
-    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None]):
+    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None]) -> Model:
 
         """
         聚合全局模型
@@ -384,7 +386,11 @@ class Blockchain(object):
         worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
                           epochs=None, device="cuda")
         worker.build(base_model, updates)
-        model = worker.get_model()
-        accuracy = worker.evaluate()
+        indices = worker.evaluate()
+        model = Model(
+            model=worker.get_model(),
+            accuracy=indices["accuracy"],
+            f1_score=indices["f1_score"]
+        )
         worker.close()
-        return accuracy, model
+        return model

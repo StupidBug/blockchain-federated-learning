@@ -7,17 +7,17 @@ from torchvision.transforms import transforms
 import torch.nn.functional as F
 from torch.autograd import Variable
 import hashlib
+from sklearn.metrics import f1_score
 import math
 
 
-def compute_accuracy(model, dataloader, get_confusion_matrix=False, device="cuda"):
+def compute_accuracy(model, dataloader, device="cuda"):
     """
     测试模型准确度
     :param model: 模型
     :param dataloader: 数据
-    :param get_confusion_matrix: 是否获取混淆矩阵
     :param device: 设备类型
-    :return:
+    :return: 准确率，F1分数
     """
 
     was_training = False
@@ -47,21 +47,13 @@ def compute_accuracy(model, dataloader, get_confusion_matrix=False, device="cuda
                 total += x.data.size()[0]
                 correct += (pred_label == target.data).sum().item()
 
-                if device == "cpu":
-                    pred_labels_list = np.append(pred_labels_list, pred_label.numpy())
-                    true_labels_list = np.append(true_labels_list, target.data.numpy())
-                else:
-                    pred_labels_list = np.append(pred_labels_list, pred_label.cpu().numpy())
-                    true_labels_list = np.append(true_labels_list, target.data.cpu().numpy())
+        f1 = f1_score(true_labels_list, pred_labels_list, average='weighted')
+        accuracy = correct / float(total)
 
     if was_training:
         model.train()
 
-    if get_confusion_matrix:
-        conf_matrix = confusion_matrix(true_labels_list, pred_labels_list)
-        return correct / float(total), conf_matrix
-
-    return correct / float(total)
+    return accuracy, f1
 
 
 def hash_sha256(text: object):
