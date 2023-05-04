@@ -74,11 +74,18 @@ def save_dataset(dateset, dataset_name):
     torch.save(dateset, dataset_dir + path_separator + dataset_name + dataset_suffix)
 
 
-def prepare_data(dataset, **kwargs):
-    if dataset == 'cifar10':
+def prepare_data():
+    logger.info("开始准备数据集————数据集类型: {} 节点数量为:{} 数据本地存放路径:{}".format(args.dataset_type, split_count, dataset_dir))
+
+    # cifar10 数据集
+    if args.dataset_type == "cifar10":
         train_ds, test_ds = get_cifar10_dataset()
-    elif dataset == 'medminst':
-        train_ds, test_ds = get_medminst_dataset(data_flag=kwargs.get("data_flag"))
+
+    # medmnist 数据集
+    elif str(args.dataset_type).startswith('medmnist'):
+        dataset, data_flag = str(args.dataset_type).split('_')[0], str(args.dataset_type).split('_')[1]
+        train_ds, test_ds = get_medminst_dataset(data_flag=data_flag)
+
     else:
         logger.error("数据集参数不规范")
         return
@@ -97,10 +104,11 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
     parser.add_argument('-n', '--node_num', default=5, type=int, help='节点数量')
+    parser.add_argument('-t', '--dataset_type', default='cifar10', type=str, help='数据集类型')
     args = parser.parse_args()
     # 数据本地存放路径
     dataset_dir = args.dataset_dir
     # 数据分割数量
     split_count = args.node_num
-    logger.info("开始准备数据集————节点数量为:{} 数据本地存放路径:{}".format(split_count, dataset_dir))
-    prepare_data("cifar10")
+    # 开始准备数据
+    prepare_data()
