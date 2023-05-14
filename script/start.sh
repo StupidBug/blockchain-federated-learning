@@ -1,4 +1,4 @@
-client_num=5
+client_num=4
 dataset_dir="..\\dataset"
 block_dir="..\\block"
 updates_dir="..\\updates"
