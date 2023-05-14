@@ -17,7 +17,8 @@ import torchvision.transforms as transforms
 
 
 class Client:
-    def __init__(self, miner, dataset_dir, updates_dir, name, learning_rate, dataset_type):
+    def __init__(self, miner, dataset_dir, updates_dir, name, learning_rate, dataset_type,
+                 train_batch_size, test_batch_size):
         """
         :param miner: 矿工地址
         :param dataset_dir: 数据集存放文件夹
@@ -30,6 +31,8 @@ class Client:
         self.dataset_type = dataset_type
         self.dataset_train, self.dataset_test = self.load_dataset()
         self.learning_rate = learning_rate
+        self.train_batch_size = train_batch_size
+        self.test_batch_size = test_batch_size
 
     def get_latest_block(self) -> dict:
         """
@@ -103,8 +106,8 @@ class Client:
         """
 
         t = time.time()
-        test_dataloader = DataLoader(self.dataset_test, batch_size=32, shuffle=False, drop_last=False)
-        train_dataloader = DataLoader(self.dataset_train, batch_size=64, shuffle=True, drop_last=False)
+        test_dataloader = DataLoader(self.dataset_test, batch_size=self.test_batch_size, shuffle=False, drop_last=False)
+        train_dataloader = DataLoader(self.dataset_train, batch_size=self.train_batch_size, shuffle=True, drop_last=False)
         worker = NNWorker(train_dataloader=train_dataloader, test_dataloader=test_dataloader, worker_id=self.name,
                           epochs=epochs, device="cuda", learning_rate=self.learning_rate, dataset_type=self.dataset_type)
 
@@ -187,6 +190,8 @@ if __name__ == '__main__':
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
     parser.add_argument('-l', '--learning_rate', default="0.01", type=float, help='client 本地训练学习率')
     parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
+    parser.add_argument('--train_batch_size', default=64, type=int, help='训练集 BATCH SIZE')
+    parser.add_argument('--test_batch_size', default=32, type=int, help='测试集 BATCH SIZE')
     args = parser.parse_args()
 
     client = Client(miner=args.miner,
@@ -194,7 +199,9 @@ if __name__ == '__main__':
                     name=args.name,
                     updates_dir=args.updates_dir,
                     learning_rate=args.learning_rate,
-                    dataset_type=args.dataset_type)
+                    dataset_type=args.dataset_type,
+                    train_batch_size=args.train_batch_size,
+                    test_batch_size=args.test_batch_size)
 
     logger.info("节点:{} 已完成初始化".format(client.name))
 
