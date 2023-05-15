@@ -6,8 +6,10 @@ from sklearn.metrics import confusion_matrix
 from torchvision.transforms import transforms
 import torch.nn.functional as F
 from torch.autograd import Variable
+from model import ModelIndicator
 import hashlib
 from sklearn.metrics import f1_score
+import torch.nn as nn
 import math
 
 
@@ -30,6 +32,7 @@ def compute_accuracy(model, dataloader, device="cuda"):
     model.to(device)
 
     true_labels_list, pred_labels_list = np.array([]), np.array([])
+    criterion = nn.CrossEntropyLoss().to(device)
 
     if type(dataloader) == type([1]):
         pass
@@ -38,14 +41,18 @@ def compute_accuracy(model, dataloader, device="cuda"):
 
     correct, total = 0, 0
     with torch.no_grad():
+        epoch_loss_collector = []
         for tmp in dataloader:
             for batch_idx, (x, target) in enumerate(tmp):
                 x, target = x.to(device), target.to(device, dtype=torch.int64)
                 out = model(x)
+                loss = criterion(out, target.data.squeeze())
                 _, pred_label = torch.max(out.data, 1)
 
                 total += x.data.size()[0]
                 correct += (pred_label == target.data.squeeze()).sum().item()
+
+                epoch_loss_collector.append(loss.item())
 
                 if device == "cpu":
                     pred_labels_list = np.append(pred_labels_list, pred_label.numpy())
@@ -58,8 +65,15 @@ def compute_accuracy(model, dataloader, device="cuda"):
 
     accuracy = correct / float(total)
     f1 = f1_score(true_labels_list, pred_labels_list, average='weighted')
+    loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
 
-    return accuracy, f1
+    model_indicator = ModelIndicator(
+        f1_score=f1,
+        accuracy=accuracy,
+        loss=loss
+    )
+
+    return model_indicator
 
 
 def hash_sha256(text: object):

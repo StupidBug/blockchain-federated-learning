@@ -56,11 +56,11 @@ class SimpleCNNMNIST(nn.Module):
         return x
 
 
-class Model:
-    def __init__(self, model, accuracy, f1_score):
-        self.model = model
+class ModelIndicator:
+    def __init__(self, accuracy, f1_score, loss):
         self.accuracy = accuracy
         self.f1_score = f1_score
+        self.loss = loss
 
 
 class ModelBuilder:

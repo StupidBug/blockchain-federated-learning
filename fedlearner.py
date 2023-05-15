@@ -5,7 +5,7 @@
 
 import numpy as np
 import pickle
-from model import ModelBuilder
+from model import ModelBuilder, ModelIndicator
 import log
 from utils import *
 import torch.optim as optim
@@ -83,13 +83,13 @@ class NNWorker:
         """
         self.model.to(self.device)
         logger.info("{} 开始本地训练模型".format(self.worker_id))
-        test_acc, test_f1 = compute_accuracy(self.model, dataloader=self.test_dataloader, device=self.device)
-        logger.info('{} 模型本地训练前测试集准确度: {} F1分数为: {}'.format(self.worker_id, test_acc, test_f1))
-        train_acc, train_f1 = compute_accuracy(model=self.model, dataloader=self.train_dataloader, device=self.device)
-        logger.info('{} 模型本地训练前训练集准确度: {} F1分数为: {}'.format(self.worker_id, train_acc, train_f1))
+        test_model_indicator = compute_accuracy(self.model, dataloader=self.test_dataloader, device=self.device)
+        logger.info('{} 模型本地训练前测试集指标为: {}'.format(self.worker_id, test_model_indicator.__dict__))
+        train_model_indicator = compute_accuracy(model=self.model, dataloader=self.train_dataloader, device=self.device)
+        logger.info('{} 模型本地训练前训练集指标为: {}'.format(self.worker_id, train_model_indicator.__dict__))
 
         optimizer = optim.SGD(filter(lambda p: p.requires_grad, self.model.parameters()), lr=self.learning_rate,
-                              momentum=0, weight_decay=1e-5)
+                              momentum=0, weight_decay=1e-4)
         criterion = nn.CrossEntropyLoss().to(self.device)
 
         cnt = 0
@@ -121,31 +121,26 @@ class NNWorker:
             epoch_loss = sum(epoch_loss_collector) / len(epoch_loss_collector)
             logger.info('{} Epoch: {} Loss: {}'.format(self.worker_id, epoch, epoch_loss))
 
-        train_acc, train_f1 = compute_accuracy(model=self.model, dataloader=self.train_dataloader, device=self.device)
-        test_acc, test_f1 = compute_accuracy(self.model, self.test_dataloader, device=self.device)
+        train_model_indicator = compute_accuracy(model=self.model, dataloader=self.train_dataloader, device=self.device)
+        test_model_indicator = compute_accuracy(self.model, self.test_dataloader, device=self.device)
 
-        logger.info('{} 模型训练后训练集准确度: {} F1分数为: {}'.format(self.worker_id, train_acc, train_f1))
-        logger.info('{} 模型训练后测试集准确度: {} F1分数为: {}'.format(self.worker_id, test_acc, test_f1))
+        logger.info('{} 模型训练后训练集指标为: {}'.format(self.worker_id, train_model_indicator.__dict__))
+        logger.info('{} 模型训练后测试集指标为: {}'.format(self.worker_id, test_model_indicator.__dict__))
 
         self.model.to('cpu')
         logger.info('{} 模型本地训练结束'.format(self.worker_id))
-        return train_acc, test_acc
+        return train_model_indicator.accuracy, test_model_indicator.accuracy
 
-    def evaluate(self) -> dict:
+    def evaluate(self) -> ModelIndicator:
 
         """
         使用测试集评估模型准确度
         :return:
         """
 
-        accuracy, f1 = compute_accuracy(model=self.model, dataloader=self.test_dataloader, device="cuda")
+        model_indicator = compute_accuracy(model=self.model, dataloader=self.test_dataloader, device="cuda")
 
-        indices = dict({
-            "accuracy": accuracy,
-            "f1_score": f1
-        })
-
-        return indices
+        return model_indicator
 
     def get_model(self):
 

@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from fedlearner import NNWorker, hash_sha256
 from datasets import *
 from typing import *
-from model import Model
+from model import ModelIndicator
 import torchvision.transforms as transforms
 import os
 
@@ -46,7 +46,7 @@ class Update:
 
 
 class Block:
-    def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, accuracy, f1_score: float,
+    def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, model_indicator: ModelIndicator,
                  updates: list[Update], time_limit, update_limit):
         # 区块体
         self.block_body = self.BlockBody(
@@ -60,23 +60,21 @@ class Block:
             block_height=block_height,
             block_body_hash=hash_sha256(self.block_body),
             miner=miner_id,
-            accuracy=accuracy,
-            f1_score=f1_score,
+            indicator=model_indicator.__dict__,
             time_limit=time_limit,
             update_limit=update_limit,
             nonce=random.randint(0, 100000000)
         )
 
     class BlockHead:
-        def __init__(self, timestamp, previous_hash, block_height, block_body_hash, miner, accuracy, f1_score, time_limit,
+        def __init__(self, timestamp, previous_hash, block_height, block_body_hash, miner, indicator, time_limit,
                      update_limit, nonce):
             self.timestamp = timestamp
             self.previous_hash = previous_hash
             self.block_height = block_height
             self.hash = block_body_hash
             self.miner = miner
-            self.accuracy = accuracy
-            self.f1_score = f1_score
+            self.indicator = indicator
             self.time_limit = time_limit
             self.update_limit = update_limit
             self.nonce = nonce
@@ -150,17 +148,19 @@ class Blockchain(object):
         self.node_addresses.add(parsed_url.netloc)
         print("Registered node", address)
 
-    def make_block(self, previous_hash=None, genesis_model: Model = None) -> Block:
+    def make_block(self, previous_hash=None, genesis_model: nn.Module = None,
+                   genesis_model_indicator: ModelIndicator = None) -> Block:
         """
         创建区块
 
         :param previous_hash: 上一区块的哈希值
         :param genesis_model: 创世区块的模型：如果不为空，则使用该模型
+        :param genesis_model_indicator: 创世区块模型的参数
         :return: 区块对象
         """
 
-        accuracy = 0
         model_updated = None
+        model_indicator = None
         time_limit = self.time_limit
         update_limit = self.update_limit
         if len(self.hashchain) > 0:
@@ -174,21 +174,21 @@ class Blockchain(object):
         # 当该区块为创世区块，则使用给定模型
         if genesis_model is not None:
             model_updated = genesis_model
+            model_indicator = genesis_model_indicator
 
         # 存在梯度更新则聚合模型
         elif len(self.current_updates) > 0:
             # TODO
             base = self.cursor_block.block_body.model_updated
-            model_updated = self.compute_global_model(base, self.current_updates)
+            model_updated, model_indicator = self.compute_global_model(base, self.current_updates)
 
         block_height = len(self.hashchain) + 1
         block = Block(
             previous_hash=previous_hash,
             miner_id=self.miner_id,
             block_height=block_height,
-            model_updated=model_updated.model,
-            accuracy=model_updated.accuracy,
-            f1_score=model_updated.f1_score,
+            model_updated=model_updated,
+            model_indicator=model_indicator,
             updates=self.current_updates,
             time_limit=time_limit,
             update_limit=update_limit
@@ -259,18 +259,21 @@ class Blockchain(object):
 
         return self.hashchain[-1]
 
-    def proof_of_work(self, stop_event, genesis_model: Model = None) -> Tuple[Block, bool]:
+    def proof_of_work(self, stop_event, genesis_model: nn.Module = None,
+                      genesis_model_indicator: ModelIndicator = None) -> Tuple[Block, bool]:
         """
         工作量证明挖矿
 
         :param genesis_model: 创世 model
         :param stop_event:
+        :param genesis_model_indicator:
         :return: block_info: 区块信息
         :return: stopped:
         """
 
         if genesis_model is not None:
-            block = self.make_block(previous_hash="-1", genesis_model=genesis_model)
+            block = self.make_block(previous_hash="-1", genesis_model=genesis_model,
+                                    genesis_model_indicator=genesis_model_indicator)
         else:
             block = self.make_block()
 
@@ -373,7 +376,8 @@ class Blockchain(object):
             return True
         return False
 
-    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None]) -> Model:
+    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None]) \
+            -> Tuple[nn.Module, ModelIndicator]:
 
         """
         聚合全局模型
@@ -386,11 +390,7 @@ class Blockchain(object):
         worker = NNWorker(train_dataloader=None, test_dataloader=dataloader_global, worker_id="Aggregation",
                           epochs=None, device="cuda", dataset_type=self.dataset_type)
         worker.build(base_model, updates)
-        indices = worker.evaluate()
-        model = Model(
-            model=worker.get_model(),
-            accuracy=indices["accuracy"],
-            f1_score=indices["f1_score"]
-        )
+        model_indicator = worker.evaluate()
+        model = worker.get_model()
         worker.close()
-        return model
+        return model, model_indicator

@@ -96,7 +96,7 @@ class Client:
         dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=transform_test)
         return dataset_train, dataset_test
 
-    def update_model(self, model: nn.Module, epochs) -> Tuple[Model, float]:
+    def update_model(self, model: nn.Module, epochs) -> Tuple[nn.Module, ModelIndicator, float]:
         """
         client 在本地训练模型
 
@@ -113,14 +113,10 @@ class Client:
 
         worker.set_model(model)
         worker.train()
-        indices = worker.evaluate()
-        model_updated = Model(
-            model=worker.get_model(),
-            accuracy=indices["accuracy"],
-            f1_score=indices["f1_score"]
-        )
+        model_indicator = worker.evaluate()
+        model = worker.get_model()
         worker.close()
-        return model_updated, time.time()-t
+        return model, model_indicator, time.time()-t
 
     def send_update(self, model_updated: nn.Module, cmp_time, base_block_height):
         """
@@ -161,23 +157,20 @@ class Client:
             # 获取最新区块信息
             latest_block_head = client.get_latest_block()
             base_block_height = latest_block_head['block_height']
-            logger.info("区块链中最新区块全局模型的准确率: {} f1分数为: {}".format(latest_block_head['accuracy'],
-                                                                                   latest_block_head['f1_score']))
+            logger.info("区块链中最新区块全局模型的指标为: {}".format(latest_block_head['indicator']))
 
             # 开始进行本地训练
             model = client.get_model(latest_block_head)
-            model_updated, cmp_time = client.update_model(model, epochs=epochs)
+            model_updated, model_indicator, cmp_time = client.update_model(model, epochs=epochs)
 
             # 保存梯度更新
             if not os.path.isdir(self.updates_dir):
                 os.mkdir(self.updates_dir)
             with open(self.updates_dir + path_separator +
                       "device" + str(self.id) + "_model_v" + str(common_round) + ".block", "wb") as f:
-                pickle.dump(model_updated.model, f)
-            logger.info("Client节点: {} 本地训练第 {} 次准确率为: {} F1 分数为: {}"
-                        .format(self.id, common_round, model_updated.accuracy, model_updated.f1_score))
+                pickle.dump(model_updated, f)
 
-            client.send_update(model_updated.model, cmp_time, base_block_height)
+            client.send_update(model_updated, cmp_time, base_block_height)
             
 
 if __name__ == '__main__':

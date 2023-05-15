@@ -12,7 +12,7 @@ from datasets import GlobalDataset, NodeDataset
 from flask import *
 from uuid import uuid4
 import torchvision.transforms as transforms
-from model import SimpleCNN, Model
+from model import SimpleCNN, ModelIndicator
 import codecs
 import os
 import glob
@@ -23,7 +23,7 @@ logger = log.setup_custom_logger("miner")
 path_separator = "\\"
 
 
-def make_base(dataset_dir):
+def make_base(dataset_dir) -> Tuple[nn.Module, ModelIndicator]:
     """
     在初始化区块链的时候，需要通过 make_base 创建一个初始模型，然后将该模型添加区块链中
     随后 client 提交的 updates 将在这个初始模型上进行更改
@@ -36,31 +36,29 @@ def make_base(dataset_dir):
                       epochs=None, device="cuda", dataset_type=dataset_type)
     worker.build_base()
 
-    indices = worker.evaluate()
-
-    base_model = Model(
-        model=worker.get_model(),
-        accuracy=indices["accuracy"],
-        f1_score=indices["f1_score"]
-    )
+    model_indicator = worker.evaluate()
+    model = worker.get_model()
     worker.close()
-    return base_model
+    return model, model_indicator
 
 
 class PoWThread(Thread):
     """
     工作量证明挖矿
     """
-    def __init__(self, stop_event, blockchain, node_identifier, genesis_model: Model = None):
+    def __init__(self, stop_event, blockchain, node_identifier, genesis_model: nn.Module = None,
+                 genesis_model_indicator: ModelIndicator = None):
         self.stop_event = stop_event
         Thread.__init__(self)
         self.blockchain = blockchain
         self.node_identifier = node_identifier
         self.response = None
         self.genesis_model = genesis_model
+        self.genesis_model_indicator = genesis_model_indicator
 
     def run(self):
-        block, stopped = self.blockchain.proof_of_work(self.stop_event, self.genesis_model)
+        block, stopped = self.blockchain.proof_of_work(self.stop_event, self.genesis_model,
+                                                       self.genesis_model_indicator)
         self.response = {
             'message': "End mining",
             'stopped': stopped,
@@ -84,16 +82,18 @@ status = {
     }
 
 
-def mine(genesis_model=None):
+def mine(genesis_model=None, genesis_model_indicator=None):
     """
     挖矿
 
     :param genesis_model: 挖掘创世区块，需要提供创世模型
+    :param genesis_model_indicator:
     :return:
     """
 
     STOP_EVENT.clear()
-    thread = PoWThread(STOP_EVENT, status["blockchain"], status["id"], genesis_model=genesis_model)
+    thread = PoWThread(STOP_EVENT, status["blockchain"], status["id"], genesis_model=genesis_model,
+                       genesis_model_indicator=genesis_model_indicator)
     status['s'] = "mining"
     thread.start()
 
@@ -330,15 +330,15 @@ if __name__ == '__main__':
     # 如果该矿工为第一个矿工，则需初始化一个新的区块链
     if args.genesis == 1:
         logger.info("矿工:{} 为区块链中的首个矿工节点，开始初始化区块链设置".format(args.miner_name))
-        model: Model = make_base(args.dataset_dir)
-        logger.info("区块链中初始全局模型测试集准确率为:{} f1分数:{}".format(model.accuracy, model.f1_score))
+        model, model_indicator = make_base(args.dataset_dir)
+        logger.info("区块链中初始全局模型测试集指标为: {}".format(model_indicator.__dict__))
         status['blockchain'] = Blockchain(miner_id=args.miner_name,
                                           block_dir=args.block_dir + path_separator + args.miner_name,
                                           update_limit=args.update_limit,
                                           dataset_dir=args.dataset_dir,
                                           dataset_type=dataset_type)
         logger.info("矿工:{} 开始 mining 创世区块".format(args.miner_name))
-        mine(genesis_model=model)
+        mine(genesis_model=model, genesis_model_indicator=model_indicator)
 
     # 如果该矿工需要加入区块链，则需获取当前存在区块链，并向区块链中注册该矿工
     else:
