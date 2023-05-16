@@ -3,6 +3,7 @@
     Client script 
 """
 import os.path
+import random
 
 import torch
 from fedlearner import *
@@ -12,7 +13,7 @@ import requests
 from argparse import ArgumentParser
 from datasets import *
 import time
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 import torchvision.transforms as transforms
 
 
@@ -42,7 +43,7 @@ class Client:
         """
         return self.get_chain()[-1]
 
-    def get_chain(self) -> list[dict]:
+    def get_chain(self) -> List[dict]:
         """
         获取完整的区块链
 
@@ -78,6 +79,10 @@ class Client:
         """
 
         block: Block = self.get_full_block(block_info)
+        if block is not None:
+            logger.info("{} 获取到区块链中最新区块全局模型".format(self.name))
+        else:
+            logger.error("{} 未能获取到区块链中最新区块全局模型".format(self.name))
         return block.block_body.model_updated
 
     def get_miner_status(self):
@@ -127,7 +132,7 @@ class Client:
         :param base_block_height:
         :return:
         """
-        logger.info("Client:{} 正在向miner节点:{} 发送梯度更新交易".format(self.id, self.miner))
+        logger.info("{} 正在向miner节点:{} 发送梯度更新交易".format(self.name, self.miner))
         requests.post('http://{node}/transactions/new'.format(node=self.miner), json={
                 'client': self.id,
                 'base_block_height': base_block_height,
@@ -157,7 +162,7 @@ class Client:
             # 获取最新区块信息
             latest_block_head = client.get_latest_block()
             base_block_height = latest_block_head['block_height']
-            logger.info("区块链中最新区块全局模型的指标为: {}".format(latest_block_head['indicator']))
+            logger.info("{} 获取到区块链中最新区块全局模型的指标为: {}".format(self.name, latest_block_head['indicator']))
 
             # 开始进行本地训练
             model = client.get_model(latest_block_head)
@@ -176,8 +181,8 @@ class Client:
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-m', '--miner', default='127.0.0.1:5000', help='client通过miner节点与区块链进行交互')
-    parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
-    parser.add_argument('-u', '--updates_dir', default=".\\updates", help='updates数据存放文件夹')
+    parser.add_argument('-d', '--dataset_dir', default=".//dataset", help='dataset数据存放文件夹')
+    parser.add_argument('-u', '--updates_dir', default=".//updates", help='updates数据存放文件夹')
     parser.add_argument('-e', '--epochs', default=5, type=int, help='client本地训练的轮次')
     parser.add_argument('-c', '--common_rounds', default=50, type=int, help='client共识训练的轮次')
     parser.add_argument('-n', '--name', default="node_1", type=str, help='client名字')
@@ -196,6 +201,6 @@ if __name__ == '__main__':
                     train_batch_size=args.train_batch_size,
                     test_batch_size=args.test_batch_size)
 
-    logger.info("节点:{} 已完成初始化".format(client.name))
+    logger.info("{} 已完成初始化".format(client.name))
 
     client.work(args.epochs, args.common_rounds)

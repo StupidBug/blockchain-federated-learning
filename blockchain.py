@@ -10,6 +10,9 @@ from urllib.parse import urlparse
 import requests
 import random
 import codecs
+
+from typing import List
+
 import log
 from torch.utils.data import DataLoader
 from fedlearner import NNWorker, hash_sha256
@@ -22,7 +25,7 @@ from utils import get_transform
 
 logger = log.setup_custom_logger("blockchain")
 block_suffix = ".block"
-path_separator = '\\'
+path_separator = os.sep
 
 
 class Update:
@@ -48,7 +51,7 @@ class Update:
 
 class Block:
     def __init__(self, previous_hash, miner_id, block_height, model_updated: nn.Module, model_indicator: ModelIndicator,
-                 updates: list[Update], time_limit, update_limit):
+                 updates: List[Update], time_limit, update_limit):
         # 区块体
         self.block_body = self.BlockBody(
             model_updated=model_updated,
@@ -115,8 +118,8 @@ class Blockchain(object):
         super(Blockchain, self).__init__()
         self.cursor_block: Union[Block, None] = None
         self.miner_id = miner_id
-        self.hashchain: list[Block.BlockHead] = []
-        self.current_updates: list[Update] = list()
+        self.hashchain: List[Block.BlockHead] = []
+        self.current_updates: List[Update] = list()
         self.update_limit = update_limit
         self.time_limit = time_limit
         self.block_dir = block_dir
@@ -297,7 +300,7 @@ class Blockchain(object):
                 break
             # nonce 不断增加直至合法
             block_head.nonce += 1
-            if block_head.nonce % 1000000 == 0:
+            if block_head.nonce % 100000 == 0:
                 logger.info("mining: {}".format(block_head.nonce))
 
         # 如果是自己挖到的区块，则存储该区块
@@ -319,11 +322,11 @@ class Blockchain(object):
         :return:
         """
 
-        k = "00000"
+        k = "0000"
         guess_hash = hash_sha256(block_head)
         return guess_hash[:len(k)] == k
 
-    def valid_chain(self, block_chain: list[Block.BlockHead]):
+    def valid_chain(self, block_chain: List[Block.BlockHead]):
         """
         验证区块链是否合法
 
@@ -385,7 +388,7 @@ class Blockchain(object):
             return True
         return False
 
-    def compute_global_model(self, base_model: nn.Module, updates: Union[list[Update], None]) \
+    def compute_global_model(self, base_model: nn.Module, updates: Union[List[Update], None]) \
             -> Tuple[nn.Module, ModelIndicator]:
 
         """

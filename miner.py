@@ -20,7 +20,7 @@ import log
 
 """设置全局日志"""
 logger = log.setup_custom_logger("miner")
-path_separator = "\\"
+path_separator = os.sep
 
 
 def make_base(dataset_dir) -> Tuple[nn.Module, ModelIndicator]:
@@ -308,12 +308,12 @@ def delete_prev_blocks() -> None:
 if __name__ == '__main__':
     from argparse import ArgumentParser
     parser = ArgumentParser()
-    parser.add_argument('-p', '--port', default=5000, type=int, help='矿工监听的端口')
+    parser.add_argument('-p', '--port', default=5001, type=int, help='矿工监听的端口')
     parser.add_argument('-i', '--host', default='127.0.0.1', help='矿工的IP地址')
     parser.add_argument('-g', '--genesis', default=1, type=int, help='初始化创世区块')
     parser.add_argument('-l', '--update_limit', default=2, type=int, help='单个区块中最多包含多少个更新')
-    parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
-    parser.add_argument('-b', '--block_dir', default=".\\block", help="区块文件存储位置")
+    parser.add_argument('-d', '--dataset_dir', default=".//dataset", help='dataset数据存放文件夹')
+    parser.add_argument('-b', '--block_dir', default=".//block", help="区块文件存储位置")
     parser.add_argument('-m', '--miner_name', default="miner_1", help="矿工 name")
     parser.add_argument('-ma', '--maddress', help='其他矿工的IP端口')
     parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
@@ -352,4 +352,4 @@ if __name__ == '__main__':
 
     # 开启矿工服务
     logger.info("矿工:{} 开始在 {} 进行监听".format(args.miner_name, address))
-    app.run(host=args.host, port=args.port)
+    app.run(host=args.host, port=args.port, threaded=True)

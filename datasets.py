@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.utils.data as data
 import numpy as np
@@ -16,7 +18,7 @@ import log
 logger = log.setup_custom_logger("dataset")
 dataset_suffix = ".dataset"
 
-path_separator = '\\'
+path_separator = os.sep
 
 
 class GlobalDataset(data.Dataset):

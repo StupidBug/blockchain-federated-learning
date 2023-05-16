@@ -1,3 +1,5 @@
+import os
+
 import torch
 
 import log
@@ -9,7 +11,7 @@ from argparse import ArgumentParser
 import torchvision.transforms as transforms
 
 logger = log.setup_custom_logger("data")
-path_separator = '\\'
+path_separator = os.sep
 dataset_suffix = '.dataset'
 
 
@@ -101,7 +103,7 @@ def prepare_data():
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('-d', '--dataset_dir', default=".\\dataset", help='dataset数据存放文件夹')
+    parser.add_argument('-d', '--dataset_dir', default=".//dataset", help='dataset数据存放文件夹')
     parser.add_argument('-n', '--node_num', default=2, type=int, help='节点数量')
     parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
     args = parser.parse_args()
