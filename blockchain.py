@@ -18,6 +18,7 @@ from typing import *
 from model import ModelIndicator
 import torchvision.transforms as transforms
 import os
+from utils import get_transform
 
 logger = log.setup_custom_logger("blockchain")
 block_suffix = ".block"
@@ -122,8 +123,8 @@ class Blockchain(object):
         self.node_addresses = set()
         self.dataset_dir = dataset_dir
         # TODO 矿工的验证集应该怎么设置
-        self.dataset_test = self.load_dataset()
         self.dataset_type = dataset_type
+        self.dataset_test = self.load_dataset()
 
     def load_dataset(self) -> GlobalDataset:
         """
@@ -131,8 +132,8 @@ class Blockchain(object):
 
         :return 数据集
         """
-        transform = transforms.Compose([transforms.ToTensor()])
-        dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=transform)
+        _, transform_test = get_transform(self.dataset_type)
+        dataset_test = GlobalDataset(dataset_dir=self.dataset_dir, train=False, transform=transform_test)
         return dataset_test
 
     def register_node(self, address):
@@ -215,6 +216,14 @@ class Blockchain(object):
         self.cursor_block = block
 
         self.hashchain.append(block.block_head)
+        block_chain_path = self.block_dir + path_separator + "block_chain.txt"
+
+        json_chain = []
+        for block_head in self.hashchain:
+            json_chain.append(block_head.__dict__)
+        with open(block_chain_path, "wb") as f:
+            f.write(json.dumps(json_chain, ensure_ascii=False, indent=2).encode('utf-8'))
+
         # 清空当前存储的梯度更新
         self.current_updates = list()
 

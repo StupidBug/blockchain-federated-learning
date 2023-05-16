@@ -124,9 +124,9 @@ def get_transform_cifar():
 def get_transform_mnist():
     transform_train = transforms.Compose([
         transforms.ToTensor(),
-        AddGaussianNoise(0., 0)])
+        transforms.Normalize(mean=[.5], std=[.5])])
 
     transform_test = transforms.Compose([
         transforms.ToTensor(),
-        AddGaussianNoise(0., 0)])
+        transforms.Normalize(mean=[.5], std=[.5])])
     return transform_train, transform_test
