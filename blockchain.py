@@ -208,10 +208,11 @@ class Blockchain(object):
         :return:
         """
 
+        if not os.path.isdir(self.block_dir):
+            os.mkdir(self.block_dir)
+
         # cursor_block 存储区块链中的最新完整区块，只有挖出了下一个区块时，才会将区块存储
         if self.cursor_block is not None:
-            if not os.path.isdir(self.block_dir):
-                os.mkdir(self.block_dir)
             block_path = self.block_dir + path_separator + "federated_model" + \
                          str(self.cursor_block.block_head.block_height) + block_suffix
             with open(block_path, "wb") as f:

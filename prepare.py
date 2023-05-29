@@ -104,7 +104,7 @@ def prepare_data():
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('-d', '--dataset_dir', default=".//dataset", help='dataset数据存放文件夹')
-    parser.add_argument('-n', '--node_num', default=2, type=int, help='节点数量')
+    parser.add_argument('-n', '--node_num', default=10, type=int, help='节点数量')
     parser.add_argument('-t', '--dataset_type', default="pathmnist", type=str, help='数据集类型')
     args = parser.parse_args()
     # 数据本地存放路径

@@ -5,8 +5,8 @@ dataset_dir="..\\dataset"
 block_dir="..\\block"
 updates_dir="..\\updates"
 dataset_type="pathmnist"
-learning_rate=0.00001
-train_batch_size=64
+learning_rate=0.0001
+train_batch_size=640
 
 python ../prepare.py -n=${client_num} -d=${dataset_dir} --dataset_type=${dataset_type}
 
